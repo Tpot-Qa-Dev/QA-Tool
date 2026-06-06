@@ -1,0 +1,148 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   fx.css — Neon dark 3D layer
+   Applied on top of the existing styles. Reads --accent / --accent-2 / --radius
+   (set live by the admin appearance settings). [data-density="compact"] tightens
+   spacing; .fx-off disables glow/animation/tilt for performance or preference.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --radius: 14px;
+  --glow:   color-mix(in srgb, var(--accent) 55%, transparent);
+  --glow-2: color-mix(in srgb, var(--accent-2) 50%, transparent);
+}
+
+/* ── Dashboard shell: fixed sidebar + scrolling main ─────────────────────── */
+.app-shell { display: flex; min-height: 100vh; }
+.app-sidebar {
+  width: 232px; flex-shrink: 0; position: sticky; top: 0; align-self: flex-start;
+  height: 100vh; overflow-y: auto; padding: 18px 8px;
+  background: linear-gradient(180deg, var(--inset), color-mix(in srgb, var(--inset) 80%, #000));
+  border-right: 1px solid var(--border);
+}
+.app-sidebar-brand {
+  display: flex; align-items: center; gap: 10px; padding: 6px 12px 18px; cursor: pointer;
+}
+.app-sidebar-logo {
+  width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
+}
+.app-sidebar-name {
+  font-weight: 800; letter-spacing: .5px; font-size: 16px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.app-sidebar-heading {
+  font-size: 10px !important; letter-spacing: .14em; color: var(--text-muted) !important;
+  padding: 8px 14px; text-transform: uppercase;
+}
+.app-nav-item { color: var(--text-dim) !important; }
+.app-nav-item:hover { background: color-mix(in srgb, var(--accent) 8%, transparent) !important; color: var(--text) !important; }
+.app-nav-item.Mui-selected {
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+  color: var(--accent) !important;
+  box-shadow: inset 3px 0 0 var(--accent), 0 0 22px -8px var(--glow);
+}
+.app-nav-item.Mui-selected:hover { background: color-mix(in srgb, var(--accent) 22%, transparent) !important; }
+.app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.app-content { padding: 0 28px 40px; max-width: 1180px; width: 100%; margin: 0 auto; }
+@media (max-width: 760px) {
+  .app-sidebar { width: 64px; }
+  .app-sidebar-name, .app-sidebar-heading, .app-nav-item .MuiListItemText-root { display: none; }
+  .app-content { padding: 0 14px 32px; }
+}
+
+/* Ambient neon background — fixed radial glows behind everything. */
+body {
+  background:
+    radial-gradient(900px 600px at 12% -8%,  color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+    radial-gradient(800px 520px at 100% 0%,  color-mix(in srgb, var(--accent-2) 15%, transparent), transparent 55%),
+    radial-gradient(700px 700px at 50% 120%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* ── Cards & surfaces: glass + neon edge + depth ─────────────────────────── */
+.card, .summary-card, .sec-card, .admin-card, .admin-block,
+.hint-box, .result-item {
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-2) 92%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border));
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #fff 6%, transparent) inset,
+    0 18px 40px -24px rgba(0, 0, 0, .8),
+    0 0 0 1px color-mix(in srgb, var(--accent) 6%, transparent);
+  backdrop-filter: blur(6px);
+  transition: transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s ease, border-color .25s ease;
+}
+.card:hover, .admin-card:hover, .admin-block:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #fff 8%, transparent) inset,
+    0 26px 60px -26px rgba(0, 0, 0, .85),
+    0 0 28px -6px var(--glow);
+}
+
+/* Headings get a subtle neon text-glow. */
+.section-label { text-shadow: 0 0 18px var(--glow); }
+
+/* ── Module grid: even, responsive, equal-height cards ───────────────────── */
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+.module-card {
+  border-radius: var(--radius);
+  min-height: 168px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  transform-style: preserve-3d;
+  transition: transform .2s cubic-bezier(.2,.7,.2,1), box-shadow .25s ease, border-color .2s ease;
+  will-change: transform;
+}
+.module-card:hover {
+  box-shadow: 0 18px 50px -18px rgba(0,0,0,.8), 0 0 30px -6px var(--glow);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.module-card.selected {
+  box-shadow: 0 0 0 1px var(--accent), 0 0 34px -6px var(--glow);
+}
+
+/* ── Buttons: neon glow ──────────────────────────────────────────────────── */
+.action-btn.primary, .run-btn {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 10px 26px -12px var(--glow);
+  transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+}
+.action-btn.primary:hover:not(:disabled), .run-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px var(--accent), 0 14px 30px -10px var(--glow), 0 0 22px -4px var(--glow);
+  filter: brightness(1.05);
+}
+.history-btn:hover, .ghost-btn:hover { box-shadow: 0 0 18px -8px var(--glow); }
+
+/* ── Density ─────────────────────────────────────────────────────────────── */
+[data-density="compact"] .card,
+[data-density="compact"] .admin-block { padding: 14px; }
+[data-density="compact"] .result-item { padding: 8px 10px; }
+
+/* ── Entrance reveal (set by useReveal) ──────────────────────────────────── */
+.reveal { opacity: 0; transform: translateY(14px) scale(.985); }
+.reveal.in {
+  opacity: 1; transform: none;
+  transition: opacity .5s ease, transform .55s cubic-bezier(.2,.7,.2,1);
+}
+
+/* ── Effects off: flatten everything ─────────────────────────────────────── */
+.fx-off body { background: var(--bg); }
+.fx-off .card, .fx-off .summary-card, .fx-off .sec-card, .fx-off .admin-card, .fx-off .admin-block {
+  backdrop-filter: none; box-shadow: var(--shadow-sm); transition: none;
+}
+.fx-off .module-card, .fx-off .card:hover { transform: none !important; }
+.fx-off .reveal { opacity: 1; transform: none; transition: none; }
+.fx-off .section-label { text-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; transform: none !important; }
+  .module-card, .card { transition: none; }
+}

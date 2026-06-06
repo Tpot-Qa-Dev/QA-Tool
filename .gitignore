@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Environment — never commit secrets
+.env
+backend/.env
+
+# Build output
+frontend/dist/
+
+# Persisted audit reports
+backend/reports/
+
+# Runtime tool settings
+backend/settings.json
+
+# Cumulative token-usage counter
+backend/usage.json
+
+# Operator-defined custom checks
+backend/custom-checks.json
+
+# Project-wise Figma access tokens (contains secrets — never commit)
+backend/figma-projects.json
+backend/*.tokens.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor / tooling
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
+ 

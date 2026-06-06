@@ -1,0 +1,66 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   theme.css
+   Design tokens for dark & light themes. The active theme is set via the
+   `data-theme` attribute on <html>. Every component reads these variables.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg:            #0A0B0F;
+  --surface:       #13151C;
+  --surface-2:     #1A1D28;
+  --surface-3:     #22263A;
+  --inset:         #0D0F16;
+
+  --border:        #252836;
+  --border-strong: #333647;
+
+  --text:          #E8ECF4;
+  --text-2:        #C4C9D4;
+  --text-dim:      #9CA3AF;
+  --text-muted:    #6B7280;
+  --text-faint:    #3D4251;
+
+  --accent:        #00E5FF;
+  --accent-2:      #A78BFA;
+  --on-accent:     #0A0B0F;
+
+  --pass:          #00FF94;
+  --warn:          #FF9F43;
+  --fail:          #FF4560;
+  --info:          #00E5FF;
+
+  --shadow-sm:     0 2px 14px -6px rgba(0, 0, 0, .6);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg:            #EEF0F5;
+  --surface:       #FFFFFF;
+  --surface-2:     #F6F7FA;
+  --surface-3:     #EDEFF4;
+  --inset:         #F2F3F7;
+
+  --border:        #E3E5EC;
+  --border-strong: #CDD0DA;
+
+  --text:          #14161D;
+  --text-2:        #3A3F4C;
+  --text-dim:      #5A6072;
+  --text-muted:    #828896;
+  --text-faint:    #A6ABB8;
+
+  --accent:        #0891B2;
+  --accent-2:      #7C3AED;
+  --on-accent:     #FFFFFF;
+
+  --pass:          #059669;
+  --warn:          #D97706;
+  --fail:          #DC2626;
+  --info:          #0891B2;
+
+  --shadow-sm:     0 2px 14px -6px rgba(30, 41, 80, .16);
+}

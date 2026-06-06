@@ -1,0 +1,328 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<title>QA Automation Tool - Documentation</title>
+<!--[if gte mso 9]>
+<xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml>
+<![endif]-->
+<style>
+  body   { font-family: 'Calibri', sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.5; }
+  h1     { font-size: 26pt; color: #0B6E8C; margin-bottom: 2pt; }
+  h2     { font-size: 16pt; color: #0B6E8C; border-bottom: 1.5pt solid #0B6E8C;
+           padding-bottom: 3pt; margin-top: 22pt; }
+  h3     { font-size: 13pt; color: #16404D; margin-top: 14pt; }
+  .sub   { font-size: 11pt; color: #666; margin-top: 0; }
+  table  { border-collapse: collapse; width: 100%; margin: 8pt 0; font-size: 10pt; }
+  th     { background: #0B6E8C; color: #fff; text-align: left; padding: 6pt 8pt; }
+  td     { border: 0.75pt solid #b9c4c9; padding: 5pt 8pt; vertical-align: top; }
+  tr:nth-child(even) td { background: #eef4f6; }
+  pre    { font-family: 'Consolas', monospace; font-size: 8.5pt; background: #f3f5f6;
+           border: 0.75pt solid #ccd5d8; padding: 8pt; white-space: pre; }
+  code   { font-family: 'Consolas', monospace; font-size: 9.5pt; background: #eef2f3;
+           padding: 1pt 3pt; }
+  .note  { background: #fff6e0; border-left: 3pt solid #E8820E; padding: 7pt 10pt; font-size: 10pt; }
+  .pagebreak { page-break-before: always; }
+  ul, ol { margin-top: 4pt; }
+  li     { margin-bottom: 3pt; }
+</style>
+</head>
+<body>
+
+<h1>QA Automation Tool</h1>
+<p class="sub"><b>Project Documentation v1.0</b> &nbsp;|&nbsp; Claude AI + Playwright<br>
+A complete guide to what this project is, how it works, and how to run it &mdash; written so
+that anyone can understand it.</p>
+
+<hr>
+
+<h2>Table of Contents</h2>
+<ol>
+  <li>What is this project?</li>
+  <li>The core idea (in plain words)</li>
+  <li>How it works &mdash; the full flow</li>
+  <li>Architecture</li>
+  <li>Project structure</li>
+  <li>The tools the audit uses</li>
+  <li>Installation &amp; setup</li>
+  <li>Running the project</li>
+  <li>Using the app (the 4-step wizard)</li>
+  <li>The MCP server (optional)</li>
+  <li>Configuration (environment variables)</li>
+  <li>Troubleshooting</li>
+  <li>Tech stack &amp; glossary</li>
+</ol>
+
+<div class="pagebreak"></div>
+
+<h2>1. What is this project?</h2>
+<p><b>QA Automation Tool</b> is a web application that <b>automatically tests websites for
+quality problems</b> &mdash; broken links, slow loading, JavaScript errors, accessibility
+issues, SEO gaps, form failures, and design mismatches.</p>
+<p>Instead of a human manually checking each thing, the tool:</p>
+<ul>
+  <li>Opens the target website in a <b>real browser</b> (Chromium),</li>
+  <li>Inspects it with automated checks,</li>
+  <li>Uses <b>Claude AI</b> to decide what to test and to write a clear report.</li>
+</ul>
+<p>You give it a URL, tick the checks you want, click Run &mdash; and a few moments later you
+get a graded report (a score out of 100, pass/warn/fail counts, findings, and suggested
+fixes).</p>
+
+<h2>2. The core idea (in plain words)</h2>
+<p>There are three "characters" in this project:</p>
+<table>
+  <tr><th>Character</th><th>Role</th><th>Analogy</th></tr>
+  <tr><td><b>Playwright</b></td><td>Controls a real Chromium browser and gathers facts about the page</td><td>The <i>hands</i> &mdash; actually opens and pokes the website</td></tr>
+  <tr><td><b>Claude AI</b></td><td>Decides which checks to run, reads the results, writes the report</td><td>The <i>brain</i> &mdash; the QA expert making decisions</td></tr>
+  <tr><td><b>The app</b> (frontend + backend)</td><td>Connects them and shows you the result</td><td>The <i>workspace</i> &mdash; where you and the tools meet</td></tr>
+</table>
+<p>The key concept: <b>Claude is the orchestrator.</b> The backend does not hard-code a fixed
+test script. It hands Claude a set of <i>tools</i> (screenshot, check links, measure speed,
+&hellip;) and a goal. Claude then calls those tools one after another until it has enough
+information, then writes the final report. This is called an <b>agentic loop</b>.</p>
+
+<h2>3. How it works &mdash; the full flow</h2>
+<p>Here is exactly what happens, start to finish, when you run an audit:</p>
+<pre>
+ YOU            FRONTEND           BACKEND            CLAUDE AI         PLAYWRIGHT
+  |                |                  |                  |                 |
+  | configure +    |                  |                  |                 |
+  | click Run ---> |                  |                  |                 |
+  |                | POST /api/audit->|                  |                 |
+  |                |                  | "audit this URL, |                 |
+  |                |                  |  here are tools"-|                 |
+  |                |                  | <--- "run        |                 |
+  |                |                  |       screenshot"|                 |
+  |                |                  | executeTool() ---|---------------> |
+  |                |                  | <----------------|--- page data ---|
+  |                | <- SSE progress -|  result -> Claude|                 |
+  | see live       |                  |        ... loop repeats ...         |
+  | progress       |                  |                  |                 |
+  |                |                  | <-- final JSON --| writes report   |
+  |                | <- SSE complete -|                  |                 |
+  | see the report |                  |                  |                 |
+</pre>
+<p><b>Step by step:</b></p>
+<ol>
+  <li>You configure the audit in the browser &mdash; choose a module, type the URL, tick the checks.</li>
+  <li>The frontend sends a <code>POST /api/audit</code> request to the backend.</li>
+  <li>The backend opens a live streaming connection (Server-Sent Events) for progress updates.</li>
+  <li>The backend asks Claude to audit the URL and lists the available tools.</li>
+  <li>Claude replies: "call the <code>playwright_screenshot</code> tool" (for example).</li>
+  <li>The backend runs that tool &mdash; Playwright launches Chromium and does the real work.</li>
+  <li>The tool result is sent back to Claude.</li>
+  <li>Steps 5&ndash;7 repeat (the agentic loop) until Claude has enough data. Each step streams to your screen.</li>
+  <li>Claude writes the final report as JSON.</li>
+  <li>The backend streams that report to the frontend, which displays it on Step 4.</li>
+</ol>
+<p class="note">The loop is capped at <b>12 iterations</b>, so it can never run forever.</p>
+
+<div class="pagebreak"></div>
+
+<h2>4. Architecture</h2>
+<p>The project has <b>two independent programs</b> that talk to each other, plus an optional third:</p>
+<pre>
++-------------------------+         +-----------------------------------+
+|   FRONTEND              |  HTTP   |   BACKEND                         |
+|   React + Vite          | ------> |   Node.js + Express               |
+|   Port 5173             | <------ |   Port 3001                       |
+|   (the user interface)  |   SSE   |   - talks to the Claude API       |
+|   No API keys here      |         |   - runs Playwright (Chromium)    |
++-------------------------+         +-----------------------------------+
+
+   OPTIONAL, SEPARATE:
++-------------------------+         +-----------------------------------+
+|   Claude Desktop app    |  stdio  |   MCP SERVER (backend/mcp)        |
+|                         | <-----> |   exposes the SAME tools          |
++-------------------------+         +-----------------------------------+
+</pre>
+<p><b>Why two programs?</b> The frontend is what you see &mdash; it holds no secrets and just
+talks to the backend. The backend holds the API keys, talks to Claude, and runs the browser.
+Keeping keys only in the backend is a basic security rule.</p>
+<p><b>Why a separate MCP server?</b> The web app is one way to use the tools. The MCP server
+is a second, optional way &mdash; it lets Claude Desktop use the same tools directly. It is
+not part of the web app flow.</p>
+
+<h2>5. Project structure</h2>
+<p>Each folder in the backend has <b>one job</b>, so the code is easy to navigate.</p>
+<table>
+  <tr><th>Location</th><th>Responsibility</th></tr>
+  <tr><td><code>backend/src/server.js</code></td><td>Entry point &mdash; starts the HTTP server</td></tr>
+  <tr><td><code>backend/src/app.js</code></td><td>Builds the Express app (middleware + routes)</td></tr>
+  <tr><td><code>backend/src/config/</code></td><td>Loads the <code>.env</code> file into one config object</td></tr>
+  <tr><td><code>backend/src/routes/</code></td><td>Which URL goes where (<code>/api/health</code>, <code>/api/audit</code>)</td></tr>
+  <tr><td><code>backend/src/controllers/</code></td><td>Handles the request/response, opens the live stream</td></tr>
+  <tr><td><code>backend/src/services/</code></td><td>The business logic &mdash; the agentic loop and prompts</td></tr>
+  <tr><td><code>backend/src/tools/</code></td><td>The actual tests (Playwright, PageSpeed, Figma)</td></tr>
+  <tr><td><code>backend/src/utils/</code></td><td>Helpers (Server-Sent Events streaming)</td></tr>
+  <tr><td><code>backend/mcp/</code></td><td>The optional standalone MCP server</td></tr>
+  <tr><td><code>frontend/src/App.jsx</code></td><td>The 4-step wizard that ties the UI together</td></tr>
+  <tr><td><code>frontend/src/components/steps/</code></td><td>One component per wizard step</td></tr>
+  <tr><td><code>frontend/src/config/modules.js</code></td><td>The 5 modules and their checkbox groups</td></tr>
+  <tr><td><code>frontend/src/hooks/</code></td><td>Audit state and theme state</td></tr>
+  <tr><td><code>frontend/src/lib/</code></td><td>Helpers &mdash; colours, report stats, exports</td></tr>
+  <tr><td><code>frontend/src/styles/</code></td><td>Theme tokens and component styling</td></tr>
+</table>
+<p>A backend request flows through the layers like this, each with a single job:</p>
+<pre>
+HTTP request --> routes/ --> controllers/ --> services/ --> tools/
+                 (where)     (validate)       (the loop)    (one check)
+</pre>
+
+<h2>6. The tools the audit uses</h2>
+<p>Claude can call any of these <b>10 tools</b>. It picks which ones to use based on the
+module and the checks you ticked.</p>
+<table>
+  <tr><th>Tool</th><th>What it checks</th></tr>
+  <tr><td>screenshot</td><td>Full-page screenshot in real Chromium</td></tr>
+  <tr><td>console_errors</td><td>JavaScript errors, warnings, failed network requests</td></tr>
+  <tr><td>check_links</td><td>Every link on the page &mdash; finds 404s / broken links</td></tr>
+  <tr><td>audit_forms</td><td>Form fields, labels, validation, method, accessibility</td></tr>
+  <tr><td>web_vitals</td><td>Real performance metrics (LCP, FCP, TTFB)</td></tr>
+  <tr><td>detect_tracking</td><td>Analytics scripts &mdash; GA4, GTM, FB Pixel, Hotjar, Clarity</td></tr>
+  <tr><td>accessibility</td><td>Missing alt text, unlabelled inputs, heading structure</td></tr>
+  <tr><td>meta_audit</td><td>Title, meta description, Open Graph tags, schema markup</td></tr>
+  <tr><td>pagespeed</td><td>Google PageSpeed Insights &mdash; Lighthouse scores</td></tr>
+  <tr><td>figma</td><td>Fetches a Figma design file's colours, fonts, and styles</td></tr>
+</table>
+
+<div class="pagebreak"></div>
+
+<h2>7. Installation &amp; setup</h2>
+<p><b>Prerequisites:</b> Node.js 20 or newer; an Anthropic API key (required); optionally a
+Google PageSpeed key and a Figma token.</p>
+<p><b>Step 1 &mdash; Install the backend:</b></p>
+<pre>cd backend
+npm install
+npm run install-browsers      (downloads Chromium for Playwright)</pre>
+<p><b>Step 2 &mdash; Add your API key.</b> Copy the template and fill it in:</p>
+<pre>cp .env.example .env</pre>
+<p>Then open <code>backend/.env</code> and set:</p>
+<pre>CLAUDE_API_KEY=sk-ant-api03-...your key here...</pre>
+<p>Get a key at console.anthropic.com &rarr; API Keys. The PageSpeed and Figma keys are
+optional and can be left blank.</p>
+<p><b>Step 3 &mdash; Install the frontend:</b></p>
+<pre>cd ../frontend
+npm install</pre>
+
+<h2>8. Running the project</h2>
+<p>You need <b>two terminals</b> &mdash; one for each program.</p>
+<pre>Terminal 1 - Backend (start this first)
+   cd backend
+   npm run dev          (auto-restarts on file changes)
+
+Terminal 2 - Frontend
+   cd frontend
+   npm run dev          (opens http://localhost:5173)</pre>
+<table>
+  <tr><th>Script</th><th>What it does</th></tr>
+  <tr><td>npm start</td><td>Run the backend normally</td></tr>
+  <tr><td>npm run dev</td><td>Run the backend with auto-restart on changes</td></tr>
+  <tr><td>npm run mcp</td><td>Run the standalone MCP server</td></tr>
+  <tr><td>npm run install-browsers</td><td>Download Chromium for Playwright</td></tr>
+</table>
+
+<h2>9. Using the app (the 4-step wizard)</h2>
+<p>The interface is a <b>4-step wizard</b> with a progress bar at the top.</p>
+<p><b>Step 1 &mdash; Select Module.</b> Pick one of five test modules:</p>
+<table>
+  <tr><th>Module</th><th>Tests for</th></tr>
+  <tr><td>Figma vs Web</td><td>Design accuracy &mdash; does the live site match the Figma design?</td></tr>
+  <tr><td>SEHSHAT Tracking</td><td>Links, buttons, forms, and analytics/tracking scripts</td></tr>
+  <tr><td>Form Submission</td><td>Whether forms work and validate correctly</td></tr>
+  <tr><td>Console Errors</td><td>JavaScript errors and network failures</td></tr>
+  <tr><td>Core Web Vitals</td><td>Speed metrics and HTML markup quality</td></tr>
+</table>
+<p><b>Step 2 &mdash; Configure.</b> Enter the website URL (and a Figma URL for the Figma
+module). Tick the checkboxes for exactly what you want tested &mdash; each module has two
+groups, with Select all / Deselect all toggles. The ticked checks are sent to Claude so it
+focuses the audit on your choices.</p>
+<p><b>Step 3 &mdash; Running.</b> Watch the audit live: a progress bar, stage pills, the real
+Playwright tool calls, and a streaming log.</p>
+<p><b>Step 4 &mdash; Report.</b> The finished report shows an overall score and grade,
+pass/warning/failed counts, a detailed results list, recommended next steps, and export
+buttons (HTML, CSV, JSON, or copy a summary). You can Re-run or start a New Audit.</p>
+<p>A <b>dark/light theme toggle</b> sits in the top-right; your choice is remembered.</p>
+
+<h2>10. The MCP server (optional)</h2>
+<p><b>MCP</b> (Model Context Protocol) is a standard that lets AI apps like Claude Desktop use
+external tools. This project includes an MCP server that exposes the same 10 tools to Claude
+Desktop. It is <b>completely separate</b> from the web app.</p>
+<p>To use it, add this to Claude Desktop's config file:</p>
+<pre>{
+  "mcpServers": {
+    "qa-playwright": {
+      "command": "node",
+      "args": ["C:/Users/admin/Downloads/qa-tool-v2/backend/mcp/server.js"],
+      "env": { "PSI_API_KEY": "AIza...", "FIGMA_TOKEN": "figd_..." }
+    }
+  }
+}</pre>
+<p>There are two ways to use the tools &mdash; pick one: the <b>web app</b> (Frontend &rarr;
+Backend &rarr; Claude API &rarr; Playwright), or <b>MCP</b> (Claude Desktop &rarr; MCP server
+&rarr; Playwright).</p>
+
+<div class="pagebreak"></div>
+
+<h2>11. Configuration (environment variables)</h2>
+<p>All settings live in <code>backend/.env</code>:</p>
+<table>
+  <tr><th>Variable</th><th>Required</th><th>Purpose</th></tr>
+  <tr><td>CLAUDE_API_KEY</td><td>Yes</td><td>Anthropic API key &mdash; the audit cannot run without it</td></tr>
+  <tr><td>PSI_API_KEY</td><td>Optional</td><td>Google PageSpeed key (works without one at a lower rate)</td></tr>
+  <tr><td>FIGMA_TOKEN</td><td>Optional</td><td>Figma access token &mdash; needed only for the Figma module</td></tr>
+  <tr><td>PORT</td><td>Optional</td><td>Backend port (default 3001)</td></tr>
+  <tr><td>FRONTEND_URL</td><td>Optional</td><td>Allowed frontend origin for CORS (default http://localhost:5173)</td></tr>
+  <tr><td>HEADLESS</td><td>Optional</td><td>true (default) runs the browser invisibly; false shows the Chromium window for debugging</td></tr>
+</table>
+<p class="note"><b>Never commit <code>.env</code> to git.</b> It contains secrets and is
+already listed in <code>.gitignore</code>.</p>
+
+<h2>12. Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+  <tr><td>"Claude: MISSING" on startup</td><td>No API key set</td><td>Add CLAUDE_API_KEY to backend/.env and restart</td></tr>
+  <tr><td>"Your credit balance is too low"</td><td>The Anthropic account has no credits</td><td>Add credits at console.anthropic.com &rarr; Plans &amp; Billing. This is a billing issue, not a code bug.</td></tr>
+  <tr><td>Header shows "offline"</td><td>Backend not running</td><td>Start the backend (npm run dev in backend/)</td></tr>
+  <tr><td>Run button stays disabled</td><td>URL empty, no checks ticked, or backend offline</td><td>Fill the URL, tick a check, ensure the backend is up</td></tr>
+  <tr><td>"nodemon not found"</td><td>Dependencies not installed</td><td>Run npm install in backend/</td></tr>
+  <tr><td>Playwright "missing browser"</td><td>Chromium not downloaded</td><td>Run npm run install-browsers in backend/</td></tr>
+  <tr><td>Audit reaches "Max iterations"</td><td>Claude could not finish in 12 steps</td><td>Try fewer checks, or a simpler page</td></tr>
+</table>
+<p><b>About cost:</b> the Claude API has no free tier &mdash; every audit spends a small
+amount of credit (a few cents for a full audit). Keep a positive balance in your Anthropic
+account.</p>
+
+<h2>13. Tech stack &amp; glossary</h2>
+<table>
+  <tr><th>Layer</th><th>Technology</th></tr>
+  <tr><td>Frontend</td><td>React 18, Vite 5</td></tr>
+  <tr><td>Backend</td><td>Node.js, Express 4</td></tr>
+  <tr><td>AI</td><td>Anthropic Claude API (claude-sonnet-4)</td></tr>
+  <tr><td>Browser automation</td><td>Playwright (Chromium)</td></tr>
+  <tr><td>Live updates</td><td>Server-Sent Events (SSE)</td></tr>
+  <tr><td>Tool protocol (optional)</td><td>Model Context Protocol (MCP)</td></tr>
+  <tr><td>External APIs</td><td>Google PageSpeed Insights, Figma REST API</td></tr>
+</table>
+<h3>Glossary</h3>
+<table>
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td>Agentic loop</td><td>The cycle where Claude calls a tool, sees the result, then decides the next tool &mdash; repeating until done</td></tr>
+  <tr><td>Tool / tool-use</td><td>A function Claude can ask the backend to run (e.g. "take a screenshot")</td></tr>
+  <tr><td>SSE</td><td>Server-Sent Events &mdash; a one-way live stream from server to browser, used for progress updates</td></tr>
+  <tr><td>MCP</td><td>Model Context Protocol &mdash; a standard way to expose tools to AI apps like Claude Desktop</td></tr>
+  <tr><td>Playwright</td><td>A library that controls a real browser (Chromium) with code</td></tr>
+  <tr><td>Headless</td><td>Running the browser invisibly, with no window on screen</td></tr>
+  <tr><td>Module</td><td>A preset bundle of related checks (e.g. "Console Errors")</td></tr>
+  <tr><td>Report</td><td>The final graded result Claude produces &mdash; score, findings, fixes</td></tr>
+</table>
+
+<hr>
+<p class="sub">QA Automation Tool v1.0 &mdash; Claude AI + Playwright. &nbsp;
+A Markdown version of this guide is also available as DOCUMENTATION.md in the project root.</p>
+
+</body>
+</html>
