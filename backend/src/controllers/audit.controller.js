@@ -19,7 +19,7 @@ function isHttpUrl(value, { allowFile = false } = {}) {
 }
 
 export async function postAudit(req, res) {
-  const { url, figmaUrl, module = 'full', checks = [], requiredTools = [], reportId, environmentHint, figmaProject } = req.body
+  const { url, figmaUrl, module = 'full', checks = [], requiredTools = [], reportId, environmentHint, figmaProject, sections } = req.body
 
   const allowFile = environmentHint === 'local'
   if (!url) return res.status(400).json({ error: 'url is required' })
@@ -47,7 +47,7 @@ export async function postAudit(req, res) {
   const emit = (event, data) => sendSSE(res, event, data)
 
   try {
-    await runAudit({ url, figmaUrl, module, checks, requiredTools, reportId, environmentHint, figmaProject }, emit)
+    await runAudit({ url, figmaUrl, module, checks, requiredTools, reportId, environmentHint, figmaProject, sections }, emit)
   } catch (err) {
     console.error('[audit] Error:', err)
     emit('error', { message: err.message })

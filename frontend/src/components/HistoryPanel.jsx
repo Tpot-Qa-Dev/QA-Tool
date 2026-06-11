@@ -19,6 +19,12 @@ function formatDate(iso) {
   try { return new Date(iso).toLocaleString() } catch { return iso }
 }
 
+// Just the domain of a URL (for a clean, readable row title).
+function domainOf(url) {
+  if (!url) return '(no url)'
+  try { return new URL(url).hostname || url } catch { return url }
+}
+
 export default function HistoryPanel({ open, onClose, onOpenReport, onOpenMerged }) {
   const [q,            setQ]            = useState('')
   const [moduleFilter, setModuleFilter] = useState('')
@@ -237,12 +243,12 @@ export default function HistoryPanel({ open, onClose, onOpenReport, onOpenMerged
                 <div className="history-row-main">
                   <div className="history-row-title">
                     <span style={{ color: accent }}>{mod?.icon || '◆'}</span>
-                    <span className="history-row-url">{r.url || '(no url)'}</span>
+                    <span className="history-row-url">{mod?.label || r.module || 'Audit'} · {domainOf(r.url)}</span>
                   </div>
                   <div className="history-row-meta">
-                    {mod?.label || r.module || '—'} · {formatDate(r.generatedAt)}
+                    🕒 {formatDate(r.generatedAt)}
                   </div>
-                  <div className="history-row-id">{r.id}</div>
+                  <div className="history-row-id" title={`Report id: ${r.id}`}>{r.url || ''}</div>
                 </div>
                 <div className="history-row-right">
                   <div className="history-row-score" style={{ color: scoreColor(r.score ?? 0) }}>

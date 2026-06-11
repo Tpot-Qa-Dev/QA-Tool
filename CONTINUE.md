@@ -1,4 +1,9 @@
-# Continue here — session handoff (2026-06-01)
+# Continue here — session handoff
+
+> ⚠️ **Current state lives in [`SESSION_LOG.md`](SESSION_LOG.md) → "▶ Resume here".**
+> That file has the up-to-date status, what's pending (Markdown export Phase 1, GitHub push), how to run, and gotchas. The notes below are the original 2026-06-01 handoff, kept for reference.
+
+---
 
 Quick context so you can resume fast next session.
 

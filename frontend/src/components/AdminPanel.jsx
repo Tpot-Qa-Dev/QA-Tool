@@ -7,7 +7,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getAdminOverview, getAdminPrompts, resetUsage, getAdminConfig, updateAdminConfig,
   getCustomChecks, addCustomCheck, deleteCustomCheck, updateCustomCheck, setBuiltinDisabled, runHistoryMaintenance,
-  getSettings, saveSettings } from '../api/client.js'
+  getSettings, saveSettings,
+  getPromptConfig, getPromptVersion, savePromptVersion, setActivePromptVersion, deletePromptVersion } from '../api/client.js'
 import { MODULES } from '../config/modules.js'
 import { applyAppearance } from '../lib/applyAppearance.js'
 import DescriptionIcon from '@mui/icons-material/Description'
@@ -58,6 +59,13 @@ export default function AdminPanel({ open, onClose }) {
   // Which admin section is shown (driven by the admin's own sidebar).
   const [section, setSection] = useState('overview')
 
+  // Editable prompt instructions + version history.
+  const [pcfg,     setPcfg]     = useState(null)  // { versions, activeId, usingDefault, defaultBody }
+  const [pcBody,   setPcBody]   = useState('')    // editor textarea
+  const [pcLabel,  setPcLabel]  = useState('')    // optional version label
+  const [pcBusy,   setPcBusy]   = useState(false)
+  const [pcNotice, setPcNotice] = useState(null)
+
   // Appearance (admin-managed UI).
   const [uiForm, setUiForm] = useState(null)
   const setUiField = (k, v) => setUiForm(f => ({ ...f, [k]: v }))
@@ -66,13 +74,61 @@ export default function AdminPanel({ open, onClose }) {
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [p, c, cks, s] = await Promise.all([getAdminPrompts(), getAdminConfig(), getCustomChecks(), getSettings()])
+      const [p, c, cks, s, pc] = await Promise.all([getAdminPrompts(), getAdminConfig(), getCustomChecks(), getSettings(), getPromptConfig()])
       setPrompts(p); setCfg(c)
       setCc(cks.customChecks || {}); setCcDisabled(cks.disabledChecks || {})
       setForm(f => ({ ...f, nodeEnv: c.nodeEnv, frontendUrl: c.frontendUrl }))
       setUiForm(s.settings.ui)
+      setPcfg(pc)
+      // Prefill the editor with whatever is active (active version body or default).
+      const activeBody = pc.activeId
+        ? (await getPromptVersion(pc.activeId)).body
+        : pc.defaultBody
+      setPcBody(activeBody)
     } catch (err) { setError(err.message) } finally { setLoading(false) }
   }, [])
+
+  // ── Prompt editor actions ────────────────────────────────────────────────
+  const refreshPrompts = async () => { setPrompts(await getAdminPrompts()) }
+
+  const pcSave = async () => {
+    if (!pcBody.trim()) return
+    setPcBusy(true); setError(null); setPcNotice(null)
+    try {
+      setPcfg(await savePromptVersion(pcLabel, pcBody))
+      setPcLabel('')
+      await refreshPrompts()
+      setPcNotice('Saved as new version — now active')
+    } catch (err) { setError(err.message) } finally { setPcBusy(false) }
+  }
+
+  const pcLoadIntoEditor = async (id) => {
+    setPcBusy(true); setError(null); setPcNotice(null)
+    try {
+      const v = await getPromptVersion(id)
+      setPcBody(v.body)
+      setPcNotice(`Loaded "${v.label}" into the editor — edit and Save, or Restore to use as-is`)
+    } catch (err) { setError(err.message) } finally { setPcBusy(false) }
+  }
+
+  const pcRestore = async (id) => {
+    setPcBusy(true); setError(null); setPcNotice(null)
+    try {
+      const cfg2 = await setActivePromptVersion(id)
+      setPcfg(cfg2)
+      const body = id === 'default' ? cfg2.defaultBody : (await getPromptVersion(id)).body
+      setPcBody(body)
+      await refreshPrompts()
+      setPcNotice(id === 'default' ? 'Reverted to built-in default' : 'Version restored — now active')
+    } catch (err) { setError(err.message) } finally { setPcBusy(false) }
+  }
+
+  const pcDelete = async (id) => {
+    if (!confirm('Delete this prompt version?')) return
+    setPcBusy(true); setError(null); setPcNotice(null)
+    try { setPcfg(await deletePromptVersion(id)); await refreshPrompts(); setPcNotice('Version deleted') }
+    catch (err) { setError(err.message) } finally { setPcBusy(false) }
+  }
 
   const saveAppearance = async () => {
     setBusy(true); setError(null); setCfgNotice(null)
@@ -525,8 +581,72 @@ export default function AdminPanel({ open, onClose }) {
         {/* PROMPTS */}
         {section === 'prompts' && (prompts ? (
               <div className="admin-block">
-                <div className="admin-block-title">Prompts used in tests</div>
-                <p className="settings-hint">Model <code>{prompts.model}</code> · temperature {prompts.temperature}. Checks + required tools are injected per run — this is exactly what the agent receives.</p>
+
+                {/* Editable persona/instructions + version history */}
+                <div className="admin-block-title">Edit Prompt (persona &amp; instructions)</div>
+                <p className="settings-hint">
+                  Edit how the agent behaves. The JSON report structure, the requested checks and the
+                  required tools are added automatically each run and can’t be edited away — so a change
+                  here can’t break the report output. <strong>Save</strong> creates a new version; you can
+                  <strong> Restore</strong> any earlier version or the built-in default.
+                </p>
+                {pcNotice && <div className="notice-box" style={{ marginBottom: 10 }}>✓ {pcNotice}</div>}
+                {pcfg && (
+                  <div className="settings-row" style={{ marginBottom: 8 }}>
+                    <span>Currently active</span>
+                    <span className={pcfg.usingDefault ? 'tag-off' : 'tag-on'}>
+                      {pcfg.usingDefault ? 'Built-in default' : (pcfg.versions.find(v => v.active)?.label || 'custom version')}
+                    </span>
+                  </div>
+                )}
+                <textarea
+                  className="history-search"
+                  style={{ width: '100%', minHeight: 260, fontFamily: 'JetBrains Mono, monospace', fontSize: 12, lineHeight: 1.5 }}
+                  value={pcBody}
+                  onChange={e => setPcBody(e.target.value)}
+                  placeholder="Persona + how the agent should work…"
+                />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+                  <input className="history-search" style={{ flex: 1, minWidth: 160 }} type="text"
+                    placeholder="Version label (optional, e.g. 'stricter accessibility')"
+                    value={pcLabel} onChange={e => setPcLabel(e.target.value)} />
+                  <button className="action-btn primary" disabled={pcBusy || !pcBody.trim()} onClick={pcSave}>
+                    {pcBusy ? 'Saving…' : '💾 Save as new version'}
+                  </button>
+                  <button className="history-btn" disabled={pcBusy} onClick={() => setPcBody(pcfg?.defaultBody || '')} title="Load default text into the editor">
+                    ↺ Load default text
+                  </button>
+                  <button className="history-btn" disabled={pcBusy || pcfg?.usingDefault} onClick={() => pcRestore('default')} title="Make the built-in default active">
+                    Reset to default
+                  </button>
+                </div>
+
+                {/* Version history */}
+                <div className="admin-block-title" style={{ marginTop: 22 }}>Version history</div>
+                {(!pcfg || pcfg.versions.length === 0) ? (
+                  <p className="settings-hint">No saved versions yet — the built-in default is in use. Edit above and Save to create the first version.</p>
+                ) : (
+                  <table className="sec-table">
+                    <thead><tr><th>Version</th><th>Saved</th><th>Preview</th><th></th></tr></thead>
+                    <tbody>
+                      {[...pcfg.versions].reverse().map(v => (
+                        <tr key={v.id}>
+                          <td>{v.label} {v.active && <span className="tag-on" style={{ marginLeft: 6 }}>active</span>}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{new Date(v.createdAt).toLocaleString()}</td>
+                          <td style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>{v.preview}…</td>
+                          <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                            <button className="history-btn" disabled={pcBusy} onClick={() => pcLoadIntoEditor(v.id)}>Edit</button>{' '}
+                            <button className="history-btn" disabled={pcBusy || v.active} onClick={() => pcRestore(v.id)}>Restore</button>{' '}
+                            <button className="history-btn" disabled={pcBusy} onClick={() => pcDelete(v.id)}>Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                <div className="admin-block-title" style={{ marginTop: 22 }}>Prompts used in tests</div>
+                <p className="settings-hint">Model <code>{prompts.model}</code> · temperature {prompts.temperature}. Reflects the active prompt above; checks + required tools are injected per run — this is exactly what the agent receives.</p>
                 <details className="custom-export"><summary>System prompt — standard module</summary><pre className="admin-pre">{prompts.standard}</pre></details>
                 <details className="custom-export"><summary>System prompt — Figma vs Web</summary><pre className="admin-pre">{prompts.figma}</pre></details>
                 <details className="custom-export"><summary>Example (with checks + required tools)</summary><pre className="admin-pre">{prompts.example}</pre></details>

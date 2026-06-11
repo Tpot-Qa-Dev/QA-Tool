@@ -9,6 +9,7 @@ import {
   exportHtmlReport, exportPdfReport, exportJsonReport, exportCsvReport, copyReportSummary,
   reportSections, exportHtmlReportSelective,
 } from '../../lib/exportReport.js'
+import { exportMarkdownZip } from '../../lib/exportMarkdown.js'
 import { saveHistoryReport } from '../../api/client.js'
 
 const ICON   = { pass: '✓', warn: '!', fail: '✕' }
@@ -467,6 +468,7 @@ export default function AuditReport({ mod, report, error, url, reportId, onRerun
         <div className="report-actions">
           <button className="action-btn primary" onClick={() => exportPdfReport(report, reportId, fileName)}>📄 Download PDF</button>
           <button className="action-btn" onClick={() => exportHtmlReport(report, reportId, fileName)}>🌐 Download HTML</button>
+          <button className="action-btn" onClick={() => exportMarkdownZip(report, mod?.label, reportId)}>⬇ Markdown (.zip)</button>
           <button className="action-btn" onClick={() => exportCsvReport(report, reportId, fileName)}>📊 Export CSV</button>
           <button className="action-btn" onClick={() => exportJsonReport(report, reportId, fileName)}>{'{ }'} JSON Export</button>
           <button className="action-btn" onClick={() => copyReportSummary(report, reportId)}>🔗 Copy Summary</button>

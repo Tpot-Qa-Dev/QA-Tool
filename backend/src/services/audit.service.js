@@ -15,6 +15,7 @@ import { saveReport } from './history.service.js'
 import { getSettings } from './settings.service.js'
 import { addUsage } from './usage.service.js'
 import { resolveToken as resolveFigmaToken } from './figmaProjects.service.js'
+import { getActiveInstructions } from './promptConfig.service.js'
 
 const anthropic = new Anthropic({ apiKey: config.keys.claude })
 
@@ -77,14 +78,18 @@ function extractReport(finalText, { url, module, allToolResults }) {
 
 // Build the opening user message describing the audit request.
 
-function buildUserMessage({ url, figmaUrl, checks, environment }) {
+function buildUserMessage({ url, figmaUrl, checks, environment, sections }) {
   const envLine = environment && !environment.isProduction
     ? `Heads up: this site looks like a ${environment.environment} (not live) site — ${environment.signals.map(s => s.signal).join(', ')}. Review it as pre-launch (see the environment instructions in your system prompt).`
+    : ''
+  const sectionLine = (sections && sections.length)
+    ? `Only review these page sections of the site: ${sections.join(', ')}. Ignore all other sections — do not report on them.`
     : ''
   return [
     `Please run a complete QA audit on this website: ${url}`,
     figmaUrl ? `Figma design URL: ${figmaUrl}` : '',
     checks.length ? `Specific checks requested: ${checks.join(', ')}` : 'Run all relevant checks.',
+    sectionLine,
     envLine,
     'Use the available Playwright tools to gather real browser data before analyzing.',
   ].filter(Boolean).join('\n')
@@ -96,7 +101,7 @@ function buildUserMessage({ url, figmaUrl, checks, environment }) {
 // Map the UI's link-type choice to an environment classification.
 const HINT_TO_ENV = { local: 'development', staging: 'staging', live: 'production' }
 
-export async function runAudit({ url, figmaUrl, module = 'full', checks = [], requiredTools = [], reportId, environmentHint, figmaProject }, emit, client = anthropic) {
+export async function runAudit({ url, figmaUrl, module = 'full', checks = [], requiredTools = [], reportId, environmentHint, figmaProject, sections }, emit, client = anthropic) {
   emit('status', { message: 'Audit started', progress: 2 })
 
   // Apply persisted settings: model / token budget / iteration cap, plus which
@@ -153,12 +158,19 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
     })
   }
 
-  const messages       = [{ role: 'user', content: buildUserMessage({ url, figmaUrl, checks, environment }) }]
+  // Selected page sections to scope the audit to (Phase 2 picker). null/empty
+  // = no filter (all sections). Matched by name against the scanned sections.
+  const selectedSections = Array.isArray(sections) ? sections.filter(s => typeof s === 'string' && s.trim()) : null
+  const messages       = [{ role: 'user', content: buildUserMessage({ url, figmaUrl, checks, environment, sections: selectedSections }) }]
   const allToolResults = []
   // Only enforce required tools that are actually enabled — we can't force a
   // tool the operator has globally disabled in Settings.
   const required     = [...new Set(requiredTools)].filter(isEnabled)
-  const systemPrompt = buildSystemPrompt(module, checks, required, settings.audit.extraInstructions, environment)
+  // The editable persona/instructions (Admin → Prompts active version, else the
+  // built-in default). Best-effort — fall back to default on any read error.
+  let activeInstructions = ''
+  try { activeInstructions = await getActiveInstructions() } catch { /* use default */ }
+  const systemPrompt = buildSystemPrompt(module, checks, required, settings.audit.extraInstructions, environment, activeInstructions)
 
   // Resolve which project-wise Figma token to use for this run (chosen project
   // → active project → .env fallback). Injected into figma_fetch calls below.
@@ -280,12 +292,21 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
           // real, check-relevant content the report shows per section (e.g. font
           // family/size/weight for a Typography check). Drop only the generic
           // accessibility checks/verdict, which aren't tied to the selection.
-          report.sections = (sec.sections || []).map(s => ({
+          let secList = (sec.sections || []).map(s => ({
             index: s.index, name: s.name, tag: s.tag,
             screenshot: s.screenshot, mimeType: s.mimeType,
             measured: s.measured, counts: s.counts,
           }))
-          report.sectionCount = sec.sectionCount
+          // Honour the section picker: keep ONLY the sections the user selected
+          // (matched by name). Empty/no selection = keep all.
+          if (selectedSections && selectedSections.length) {
+            const want = new Set(selectedSections)
+            const filtered = secList.filter(s => want.has(s.name))
+            if (filtered.length) secList = filtered
+          }
+          report.sections = secList
+          report.sectionCount = secList.length
+          if (selectedSections && selectedSections.length) report.selectedSections = selectedSections
 
           // Section-wise screenshots only — never a full-page hero shot. The
           // only other images in the report are the targeted evidence shots of

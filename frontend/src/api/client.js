@@ -102,6 +102,21 @@ export async function resetUsage() {
   return r.json()
 }
 
+// Lightweight list of a page's sections (names/tags only, no screenshots) for
+// the section picker. Returns { url, sections: [{index, name, tag, counts}] }.
+export async function listSections(url) {
+  const r = await fetch(`${API_BASE}/sections`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ url }),
+  })
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}))
+    throw new Error(e.error || `HTTP ${r.status}`)
+  }
+  return r.json()
+}
+
 // Generate a section-by-section live-web report (deterministic, no Claude).
 export async function runSectionReport(url) {
   const r = await fetch(`${API_BASE}/section-report`, {
@@ -130,6 +145,53 @@ export async function getAdminOverview({ days, module } = {}) {
 
 export async function getAdminPrompts() {
   const r = await fetch(`${API_BASE}/admin/prompts`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
+// ── Editable prompt instructions + version history ───────────────────────────
+
+// List versions + which is active + the built-in default body.
+export async function getPromptConfig() {
+  const r = await fetch(`${API_BASE}/admin/prompt-config`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
+// Full body of one version (or 'default') — to load into the editor.
+export async function getPromptVersion(id) {
+  const r = await fetch(`${API_BASE}/admin/prompt-config/${encodeURIComponent(id)}`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
+// Save the edited body as a new version (becomes active).
+export async function savePromptVersion(label, body) {
+  const r = await fetch(`${API_BASE}/admin/prompt-config`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ label, body }),
+  })
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}))
+    throw new Error(e.error || `HTTP ${r.status}`)
+  }
+  return r.json()
+}
+
+// Restore (make active) a version, or 'default' for the built-in prompt.
+export async function setActivePromptVersion(id) {
+  const r = await fetch(`${API_BASE}/admin/prompt-config/active`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ id }),
+  })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
+export async function deletePromptVersion(id) {
+  const r = await fetch(`${API_BASE}/admin/prompt-config/${encodeURIComponent(id)}`, { method: 'DELETE' })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }

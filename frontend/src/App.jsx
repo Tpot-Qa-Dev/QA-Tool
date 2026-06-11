@@ -27,8 +27,23 @@ import ConfigureAudit    from './components/steps/ConfigureAudit.jsx'
 import RunningAudit      from './components/steps/RunningAudit.jsx'
 import AuditReport       from './components/steps/AuditReport.jsx'
 
-const newReportId = () => 'QA-' + Date.now().toString(36).toUpperCase()
-const EMPTY_INPUTS = { website_url: '', figma_url: '', environment: 'live', figmaProject: '' }
+// Readable, date-time-first report ids so History is easy to scan and files are
+// meaningful — e.g. "2026-06-09_1545_example-com_console_errors_k2x" instead of
+// an opaque "QA-MQ7ZK2MX". The trailing base36 keeps it unique per run.
+const pad2 = (n) => String(n).padStart(2, '0')
+const stamp = (d = new Date()) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}`
+const domainSlug = (url) => {
+  try {
+    const u = new URL(url)
+    const base = u.hostname || u.pathname.split('/').pop() || 'local'
+    return base.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 40).toLowerCase() || 'site'
+  } catch { return 'site' }
+}
+const makeReportId = (url, moduleId) =>
+  `${stamp()}_${domainSlug(url)}_${moduleId || 'audit'}_${Date.now().toString(36).slice(-3)}`
+const newReportId = () => `audit_${stamp()}`  // placeholder shown before a run
+const EMPTY_INPUTS = { website_url: '', figma_url: '', environment: 'live', figmaProject: '', sections: [] }
 
 // Per-environment URL memory: remembers a separate website URL for the Local,
 // Staging/Dev and Live link types so switching the type recalls its own link.
@@ -188,6 +203,9 @@ export default function App() {
     if (!canRun) return
     setPastReport(null) // a fresh run replaces any viewed past report
     const cleanUrl = inputs.website_url.trim()
+    // Generate a meaningful, date-time-first id for THIS run (url + module known now).
+    const runId = makeReportId(cleanUrl, mod.id)
+    setReportId(runId)
     setRecentUrls(addRecentUrl(cleanUrl)) // remember the website URL
     // Remember this URL under its link type so the type recalls it next time.
     const nextMap = { ...urlByEnv, [inputs.environment]: cleanUrl }
@@ -202,9 +220,10 @@ export default function App() {
       module:          mod.id,
       checks:          selectedCheckLabels(mod, checkState),
       requiredTools:   selectedCheckTools(mod, checkState),
-      reportId,
+      reportId:        runId,
       environmentHint: inputs.environment,
       figmaProject:    inputs.figmaProject || undefined,
+      sections:        inputs.sections?.length ? inputs.sections : undefined,
     })
     setStep(4)
   }

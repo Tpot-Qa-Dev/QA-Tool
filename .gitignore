@@ -20,6 +20,9 @@ backend/usage.json
 # Operator-defined custom checks
 backend/custom-checks.json
 
+# Editable prompt versions (runtime state)
+backend/prompt-config.json
+
 # Project-wise Figma access tokens (contains secrets — never commit)
 backend/figma-projects.json
 backend/*.tokens.json

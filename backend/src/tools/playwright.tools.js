@@ -364,7 +364,7 @@ export async function auditPageMeta(url) {
 // Splits the live page into visual sections (header → main blocks → footer),
 // screenshots each one, and measures its computed styles. Used by the
 // section-by-section comparison report (the "live web" side).
-export async function auditWebSections(url) {
+export async function auditWebSections(url, { withShots = true } = {}) {
   return withPage(url, async (page) => {
     // Tag candidate sections in the DOM and return their metadata. Heuristic:
     // <header>, the significant top-level blocks of <main> (or <body>), <footer>.
@@ -495,21 +495,26 @@ export async function auditWebSections(url) {
       return picked
     })
 
-    // Screenshot each tagged section by its data attribute.
+    // Screenshot each tagged section by its data attribute. Skipped when
+    // withShots is false (the section PICKER only needs names — much faster).
     const sections = []
     for (const s of meta) {
       let base64 = null
-      try {
-        const buf = await page.locator(`[data-qa-section="${s.index}"]`).first()
-          .screenshot({ timeout: 8000 })
-        base64 = buf.toString('base64')
-      } catch { /* element not screenshottable — keep metadata only */ }
+      if (withShots) {
+        try {
+          const buf = await page.locator(`[data-qa-section="${s.index}"]`).first()
+            .screenshot({ timeout: 8000 })
+          base64 = buf.toString('base64')
+        } catch { /* element not screenshottable — keep metadata only */ }
+      }
       sections.push({ ...s, screenshot: base64, mimeType: 'image/png' })
     }
 
     // Full-page screenshot too (same browser pass) — used as the report hero shot.
     let fullPage = null
-    try { fullPage = (await page.screenshot({ fullPage: true })).toString('base64') } catch { /* ignore */ }
+    if (withShots) {
+      try { fullPage = (await page.screenshot({ fullPage: true })).toString('base64') } catch { /* ignore */ }
+    }
 
     return {
       tool: 'section_audit',

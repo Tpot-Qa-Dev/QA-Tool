@@ -2,7 +2,9 @@
 //  components/steps/ConfigureAudit.jsx
 //  Wizard step 2 — enter URLs and tick the checks to run.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState } from 'react'
 import Checkbox from '../Checkbox.jsx'
+import { listSections } from '../../api/client.js'
 
 // The three link types the audit can target. The choice tells the backend how
 // to frame the report (a Local/Staging link is reviewed as pre-launch; a Live
@@ -21,6 +23,37 @@ export default function ConfigureAudit({
 }) {
   const env = inputs.environment || 'live'
   const currentEnv = ENVIRONMENTS.find(e => e.id === env) || ENVIRONMENTS[2]
+
+  // ── Page-section picker ──────────────────────────────────────────────────
+  const [scanning, setScanning] = useState(false)
+  const [scanned,  setScanned]  = useState([])   // [{ index, name, tag, counts }]
+  const [scanErr,  setScanErr]  = useState(null)
+  const selectedSections = inputs.sections || []
+
+  const scanSections = async () => {
+    const url = inputs.website_url.trim()
+    if (!url || errors?.website) return
+    setScanning(true); setScanErr(null)
+    try {
+      const res = await listSections(url)
+      const list = res.sections || []
+      setScanned(list)
+      // Default: select every detected section.
+      setInput('sections', list.map(s => s.name))
+    } catch (err) {
+      setScanErr(err.message)
+      setScanned([])
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const toggleSection = (name) => {
+    const set = new Set(selectedSections)
+    set.has(name) ? set.delete(name) : set.add(name)
+    setInput('sections', [...set])
+  }
+  const allSectionsOn = scanned.length > 0 && scanned.every(s => selectedSections.includes(s.name))
   const accent       = mod.color
   const needsFigma   = mod.inputs.includes('figma_url')
   const isCheckbox   = (i) => (i.type || 'checkbox') === 'checkbox'
@@ -168,6 +201,55 @@ export default function ConfigureAudit({
                   ))}
                 </select>
               )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Page sections — optional. Scan the page and pick which sections to test;
+          unticked sections are skipped entirely in the audit + report. */}
+      <div className="card">
+        <div className="cbx-head-row">
+          <div className="section-label" style={{ margin: 0 }}>Page Sections <span className="tag">optional</span></div>
+          {scanned.length > 0 && (
+            <span className="all-toggle" style={{ color: accent }}
+              onClick={() => setInput('sections', allSectionsOn ? [] : scanned.map(s => s.name))}>
+              {allSectionsOn ? 'Deselect all' : 'Select all'}
+            </span>
+          )}
+        </div>
+        <div className="file-name-hint" style={{ marginBottom: 10 }}>
+          Scan the page and choose which sections to test. Leave empty to test the whole page.
+        </div>
+        <button
+          type="button"
+          className="ghost-btn"
+          disabled={scanning || !inputs.website_url.trim() || !!errors?.website}
+          onClick={scanSections}
+          style={{ padding: '8px 14px', fontSize: 12 }}
+        >
+          {scanning ? '⏳ Scanning…' : (scanned.length ? '↻ Re-scan sections' : '🔍 Scan page sections')}
+        </button>
+        {scanErr && <div className="field-error" style={{ marginTop: 8 }}>⚠ {scanErr}</div>}
+        {scanned.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            {scanned.map(s => (
+              <div key={s.index} className="cbx-item" onClick={() => toggleSection(s.name)}>
+                <Checkbox checked={selectedSections.includes(s.name)} accent={accent} />
+                <span className={`cbx-label ${selectedSections.includes(s.name) ? 'checked' : ''}`}>
+                  {s.name} <span className="badge tag">{s.tag}</span>
+                  {s.counts && (
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 6 }}>
+                      {s.counts.links ?? 0} links · {s.counts.images ?? 0} img · {s.counts.headings ?? 0} headings
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+            <div className="cbx-summary">
+              {selectedSections.length === 0
+                ? 'No sections selected — the whole page will be tested.'
+                : `✓ ${selectedSections.length} of ${scanned.length} sections selected`}
             </div>
           </div>
         )}

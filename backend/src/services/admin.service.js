@@ -7,6 +7,7 @@ import { getAllMetadata } from './history.service.js'
 import { getUsage } from './usage.service.js'
 import { getSettings } from './settings.service.js'
 import { buildSystemPrompt, REPORT_SHAPE } from './prompts.js'
+import { getActiveInstructions } from './promptConfig.service.js'
 
 const round = (n) => Math.round(n)
 
@@ -87,16 +88,19 @@ export async function getOverview({ days, module } = {}) {
 export async function getPrompts() {
   const settings = await getSettings()
   const extra = settings.audit.extraInstructions
+  // Render with the active (possibly operator-edited) instructions so the
+  // inspection shows exactly what the agent currently receives.
+  const instructions = await getActiveInstructions()
 
   return {
     reportShape: REPORT_SHAPE,
-    standard:    buildSystemPrompt('generic', [], [], extra),
-    figma:       buildSystemPrompt('figma_vs_web', [], [], extra),
+    standard:    buildSystemPrompt('generic', [], [], extra, null, instructions),
+    figma:       buildSystemPrompt('figma_vs_web', [], [], extra, null, instructions),
     example:     buildSystemPrompt(
       'console_errors',
       ['JavaScript runtime errors', 'Network / Fetch failures'],
       ['playwright_console_errors'],
-      extra,
+      extra, null, instructions,
     ),
     userMessageTemplate:
       'Please run a complete QA audit on this website: <url>\n' +
