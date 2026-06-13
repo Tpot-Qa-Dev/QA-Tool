@@ -7,6 +7,9 @@ import { getEnvStatus, updateEnvConfig } from '../services/envconfig.service.js'
 import {
   getPromptConfig, getVersionBody, saveVersion, setActiveVersion, deleteVersion,
 } from '../services/promptConfig.service.js'
+import {
+  listProfiles, addProfile, updateProfile, removeProfile, setActiveProfile,
+} from '../services/aiModels.service.js'
 
 export async function getAdminOverview(req, res) {
   try {
@@ -66,6 +69,36 @@ export async function deleteAdminPromptVersion(req, res) {
   } catch (err) {
     res.status(400).json({ error: err.message })
   }
+}
+
+// ── AI model profiles (multi-model + per-model API key) ──────────────────────
+export async function getAdminAiModels(_req, res) {
+  try { res.json(await listProfiles()) }
+  catch (err) { res.status(500).json({ error: err.message }) }
+}
+
+export async function postAdminAiModel(req, res) {
+  try {
+    const { label, provider, model, apiKey } = req.body || {}
+    res.json(await addProfile({ label, provider, model, apiKey }))
+  } catch (err) { res.status(400).json({ error: err.message }) }
+}
+
+export async function putAdminAiModelActive(req, res) {
+  try { res.json(await setActiveProfile((req.body || {}).id)) }
+  catch (err) { res.status(400).json({ error: err.message }) }
+}
+
+export async function putAdminAiModel(req, res) {
+  try {
+    const { label, model, provider, apiKey } = req.body || {}
+    res.json(await updateProfile(req.params.id, { label, model, provider, apiKey }))
+  } catch (err) { res.status(400).json({ error: err.message }) }
+}
+
+export async function deleteAdminAiModel(req, res) {
+  try { res.json(await removeProfile(req.params.id)) }
+  catch (err) { res.status(400).json({ error: err.message }) }
 }
 
 export function getAdminConfig(_req, res) {

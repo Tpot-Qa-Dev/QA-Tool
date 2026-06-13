@@ -8,7 +8,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { getAdminOverview, getAdminPrompts, resetUsage, getAdminConfig, updateAdminConfig,
   getCustomChecks, addCustomCheck, deleteCustomCheck, updateCustomCheck, setBuiltinDisabled, runHistoryMaintenance,
   getSettings, saveSettings,
-  getPromptConfig, getPromptVersion, savePromptVersion, setActivePromptVersion, deletePromptVersion } from '../api/client.js'
+  getPromptConfig, getPromptVersion, savePromptVersion, setActivePromptVersion, deletePromptVersion,
+  listAiModels, addAiModel, updateAiModel, setActiveAiModel, deleteAiModel } from '../api/client.js'
+
+// Suggested model ids per provider (free-text still allowed).
+const MODEL_PRESETS = {
+  anthropic: ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
+  openai:    ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+  google:    ['gemini-2.0-flash', 'gemini-1.5-pro'],
+}
 import { MODULES } from '../config/modules.js'
 import { applyAppearance } from '../lib/applyAppearance.js'
 import DescriptionIcon from '@mui/icons-material/Description'
@@ -66,6 +74,14 @@ export default function AdminPanel({ open, onClose }) {
   const [pcBusy,   setPcBusy]   = useState(false)
   const [pcNotice, setPcNotice] = useState(null)
 
+  // AI model profiles (multi-model + per-model API key).
+  const [aiCfg,   setAiCfg]   = useState(null)  // { profiles, activeId, providers }
+  const [aiForm,  setAiForm]  = useState({ label: '', provider: 'anthropic', model: 'claude-sonnet-4-6', apiKey: '' })
+  const [aiBusy,  setAiBusy]  = useState(false)
+  const [aiNotice, setAiNotice] = useState(null)
+  const [aiEditId, setAiEditId] = useState(null)  // null = add mode; id = editing that profile
+  const setAiField = (k, v) => setAiForm(f => ({ ...f, [k]: v }))
+
   // Appearance (admin-managed UI).
   const [uiForm, setUiForm] = useState(null)
   const setUiField = (k, v) => setUiForm(f => ({ ...f, [k]: v }))
@@ -74,12 +90,13 @@ export default function AdminPanel({ open, onClose }) {
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [p, c, cks, s, pc] = await Promise.all([getAdminPrompts(), getAdminConfig(), getCustomChecks(), getSettings(), getPromptConfig()])
+      const [p, c, cks, s, pc, ai] = await Promise.all([getAdminPrompts(), getAdminConfig(), getCustomChecks(), getSettings(), getPromptConfig(), listAiModels()])
       setPrompts(p); setCfg(c)
       setCc(cks.customChecks || {}); setCcDisabled(cks.disabledChecks || {})
       setForm(f => ({ ...f, nodeEnv: c.nodeEnv, frontendUrl: c.frontendUrl }))
       setUiForm(s.settings.ui)
       setPcfg(pc)
+      setAiCfg(ai)
       // Prefill the editor with whatever is active (active version body or default).
       const activeBody = pc.activeId
         ? (await getPromptVersion(pc.activeId)).body
@@ -128,6 +145,46 @@ export default function AdminPanel({ open, onClose }) {
     setPcBusy(true); setError(null); setPcNotice(null)
     try { setPcfg(await deletePromptVersion(id)); await refreshPrompts(); setPcNotice('Version deleted') }
     catch (err) { setError(err.message) } finally { setPcBusy(false) }
+  }
+
+  // ── AI model actions ─────────────────────────────────────────────────────
+  const aiResetForm = () => { setAiEditId(null); setAiForm({ label: '', provider: 'anthropic', model: 'claude-sonnet-4-6', apiKey: '' }) }
+
+  const aiAdd = async () => {
+    if (!aiForm.label.trim() || !aiForm.model.trim()) return
+    setAiBusy(true); setError(null); setAiNotice(null)
+    try {
+      setAiCfg(await addAiModel(aiForm))
+      aiResetForm()
+      setAiNotice('Model added')
+    } catch (err) { setError(err.message) } finally { setAiBusy(false) }
+  }
+
+  // Load a profile into the form for editing (key left blank = keep current).
+  const aiStartEdit = (p) => {
+    setAiEditId(p.id)
+    setAiForm({ label: p.label, provider: p.provider, model: p.model, apiKey: '' })
+    setAiNotice(null); setError(null)
+  }
+  const aiSaveEdit = async () => {
+    if (!aiEditId || !aiForm.label.trim() || !aiForm.model.trim()) return
+    setAiBusy(true); setError(null); setAiNotice(null)
+    try {
+      setAiCfg(await updateAiModel(aiEditId, aiForm)) // blank apiKey keeps current
+      aiResetForm()
+      setAiNotice('Model updated')
+    } catch (err) { setError(err.message) } finally { setAiBusy(false) }
+  }
+  const aiActivate = async (id) => {
+    setAiBusy(true); setError(null); setAiNotice(null)
+    try { setAiCfg(await setActiveAiModel(id)) }
+    catch (err) { setError(err.message) } finally { setAiBusy(false) }
+  }
+  const aiRemove = async (id, label) => {
+    if (!confirm(`Remove AI model "${label}"?`)) return
+    setAiBusy(true); setError(null); setAiNotice(null)
+    try { setAiCfg(await deleteAiModel(id)); setAiNotice('Model removed') }
+    catch (err) { setError(err.message) } finally { setAiBusy(false) }
   }
 
   const saveAppearance = async () => {
@@ -224,6 +281,7 @@ export default function AdminPanel({ open, onClose }) {
   const SECTIONS = [
     { key: 'overview',   label: 'Overview',      icon: '📊' },
     { key: 'config',     label: 'Configuration', icon: '🔑' },
+    { key: 'models',     label: 'AI Models',     icon: '🤖' },
     { key: 'appearance', label: 'Appearance',    icon: '🎨' },
     { key: 'checks',     label: 'Custom Checks',  icon: '☑' },
     { key: 'prompts',    label: 'Prompts',       icon: '📝' },
@@ -329,6 +387,7 @@ export default function AdminPanel({ open, onClose }) {
                 <div className="admin-trow"><span>Input</span><span>{fmt(ov.usage?.inputTokens)}</span></div>
                 <div className="admin-trow"><span>Output</span><span>{fmt(ov.usage?.outputTokens)}</span></div>
                 <div className="admin-trow"><span><b>Total</b></span><span><b>{fmt(ov.usage?.totalTokens)}</b></span></div>
+                <div className="admin-trow"><span>Avg / audit</span><span>{fmt(ov.usage?.audits ? Math.round((ov.usage.totalTokens || 0) / ov.usage.audits) : 0)}</span></div>
                 {ov.usage?.since && <div className="admin-since">since {new Date(ov.usage.since).toLocaleString()}</div>}
                 <button className="history-btn" disabled={busy} onClick={() => maintenance('reset-usage', {}, 'Reset the cumulative token counter to zero?')} style={{ marginTop: 10 }}>Reset token counter</button>
               </div>
@@ -576,6 +635,82 @@ export default function AdminPanel({ open, onClose }) {
                   </tbody>
                 </table>
               </div>
+        )}
+
+        {/* AI MODELS */}
+        {section === 'models' && (
+            <div className="admin-block">
+              <div className="admin-block-title">AI Models</div>
+              <p className="settings-hint">
+                Add multiple AI models, each with its <strong>own API key</strong>, and pick which one audits use.
+                Handy when a key runs out of credits — just switch the active model. Claude (Anthropic) models run
+                today; OpenAI/Gemini can be saved now and will run once their adapter ships.
+              </p>
+              {aiNotice && <div className="notice-box" style={{ marginBottom: 10 }}>✓ {aiNotice}</div>}
+
+              {(!aiCfg || aiCfg.profiles.length === 0) ? (
+                <div className="settings-row"><span style={{ color: 'var(--text-muted)' }}>No models yet — add one below. Until then, audits use the model in Settings + the .env Claude key.</span></div>
+              ) : (
+                <table className="sec-table">
+                  <thead><tr><th>Model</th><th>Provider</th><th>Key</th><th>Active</th><th></th></tr></thead>
+                  <tbody>
+                    {aiCfg.profiles.map(p => (
+                      <tr key={p.id}>
+                        <td>{p.label} <span style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }}>{p.model}</span></td>
+                        <td>{aiCfg.providers?.[p.provider]?.label || p.provider}{!p.runnable && <span className="tag-off" style={{ marginLeft: 6 }}>not wired</span>}</td>
+                        <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-muted)' }}>{p.hasKey ? p.keyHint : '— uses .env'}</td>
+                        <td>
+                          <label style={{ cursor: 'pointer' }} title="Use this model for audits">
+                            <input type="radio" name="ai-active" checked={p.active} onChange={() => aiActivate(p.id)} />
+                          </label>
+                        </td>
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <button className="history-btn" disabled={aiBusy} onClick={() => aiStartEdit(p)}>Edit</button>{' '}
+                          <button className="history-btn" disabled={aiBusy} onClick={() => aiRemove(p.id, p.label)}>Remove</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              <div className="admin-block-title" style={{ marginTop: 20 }}>{aiEditId ? 'Edit model' : 'Add a model'}</div>
+              <div className="config-grid">
+                <label className="settings-field">
+                  <span>Label</span>
+                  <input className="history-search" type="text" placeholder="e.g. Opus (main account)"
+                    value={aiForm.label} onChange={e => setAiField('label', e.target.value)} />
+                </label>
+                <label className="settings-field">
+                  <span>Provider</span>
+                  <select className="history-filter" value={aiForm.provider}
+                    onChange={e => { const prov = e.target.value; setAiForm(f => ({ ...f, provider: prov, model: MODEL_PRESETS[prov]?.[0] || '' })) }}>
+                    {Object.entries(aiCfg?.providers || { anthropic: { label: 'Claude (Anthropic)' } }).map(([k, v]) =>
+                      <option key={k} value={k}>{v.label}{v.runnable === false ? ' — not wired yet' : ''}</option>)}
+                  </select>
+                </label>
+                <label className="settings-field">
+                  <span>Model id</span>
+                  <input className="history-search" type="text" list="ai-model-presets" placeholder="model id"
+                    value={aiForm.model} onChange={e => setAiField('model', e.target.value)} />
+                  <datalist id="ai-model-presets">
+                    {(MODEL_PRESETS[aiForm.provider] || []).map(m => <option key={m} value={m} />)}
+                  </datalist>
+                </label>
+                <label className="settings-field">
+                  <span>API key {aiEditId ? <em style={{ color: 'var(--text-muted)' }}>(blank = keep current key)</em> : (aiForm.provider === 'anthropic' && <em style={{ color: 'var(--text-muted)' }}>(blank = use .env key)</em>)}</span>
+                  <input className="history-search" type="password" placeholder={aiEditId ? 'leave blank to keep current key' : 'API key for this model'}
+                    value={aiForm.apiKey} onChange={e => setAiField('apiKey', e.target.value)} />
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="action-btn primary" disabled={aiBusy || !aiForm.label.trim() || !aiForm.model.trim()}
+                  onClick={aiEditId ? aiSaveEdit : aiAdd}>
+                  {aiBusy ? 'Saving…' : (aiEditId ? '💾 Save changes' : '+ Add model')}
+                </button>
+                {aiEditId && <button className="history-btn" disabled={aiBusy} onClick={aiResetForm}>Cancel</button>}
+              </div>
+            </div>
         )}
 
         {/* PROMPTS */}

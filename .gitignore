@@ -23,6 +23,9 @@ backend/custom-checks.json
 # Editable prompt versions (runtime state)
 backend/prompt-config.json
 
+# AI model profiles (contains per-model API keys — never commit)
+backend/ai-models.json
+
 # Project-wise Figma access tokens (contains secrets — never commit)
 backend/figma-projects.json
 backend/*.tokens.json

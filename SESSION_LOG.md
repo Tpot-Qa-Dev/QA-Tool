@@ -6,14 +6,16 @@ A running, human-readable log of work done with Claude Code: each request and wh
 
 ## ▶ Resume here (continue next session)
 
-_Last updated: 2026-06-09._
+_Last updated: 2026-06-11._
 
-**Where we are:** the tool works end-to-end against live Claude. This session added: dev-vs-live detection + pre-launch framing (incl. ignoring HTTP/HTTPS on staging), link-type selector (Local/Staging/Live) with `file://` support, project-wise Figma tokens, figma 429 fix, merge-report fix, reliable evidence screenshots, an editable prompt + version history in Admin, per-tool **Markdown ZIP export** (Phase 3), the **page-section picker** (Phase 2), and **meaningful date-time report IDs**. See the dated sections below for details.
+**Where we are:** the tool works end-to-end against live Claude. Built so far: dev-vs-live detection + pre-launch framing (incl. ignoring HTTP/HTTPS on staging), link-type selector (Local/Staging/Live) with `file://` support, project-wise Figma tokens, figma 429 fix, merge-report fix, reliable evidence screenshots, editable prompt + version history (Admin), per-tool **Markdown ZIP export** (Phase 3), **page-section picker** (Phase 2), **meaningful date-time report IDs**, **accurate token usage** (counts failed audits), connection-drop retry, and a **multi-model AI manager** (Admin → AI Models: many models, each with its own API key; Settings dropdown to switch which one runs audits). **Gemini execution adapter** is built and live-reaching Google (last error was just an invalid API key — needs a valid `AIza…` key from aistudio.google.com/apikey). See dated sections below.
 
 **Still pending / next up:**
-1. **Markdown export — Phase 1:** multi-module selection (pick several modules in Step 1 → one `.md` per module in a single ZIP). Phases 2 (section picker) + 3 (per-module .md) are done.
-2. **GitHub push (paused):** repo committed locally on branch `main`, no secrets committed; `gh` CLI installed but **not authenticated**. Open question: confirm canonical dir (`c:\projects\qa-tool-v2` vs `C:\projects\QA-Tool`) before pushing. Then `gh auth login` → `gh repo create qa-tool-v2 --public --source=. --remote=origin --push`. Decided: name `qa-tool-v2`, **public**.
-3. Optional: group History by day ("Today"/"Yesterday"); surface active prompt-version name on the report.
+1. **Gemini — finish validating:** user is adding a valid Google AI Studio key (`AIza…`) via Admin → AI Models → Edit. If a *new* error appears on a real run (function-call/schema/response-format), fix `backend/src/tools/geminiAdapter.js`. (Adapter confirmed working — it reached Gemini; only the key was invalid.)
+2. **OpenAI execution adapter** — still gated (`PROVIDERS.openai.runnable=false`); build like the Gemini adapter when wanted (needs a test key).
+3. **Markdown export — Phase 1:** multi-module selection (one `.md` per module in one ZIP). Phases 2+3 done.
+4. **GitHub push (paused):** committed locally on `main`, no secrets committed; `gh` installed but **not authenticated**. Confirm canonical dir (`c:\projects\qa-tool-v2` vs `C:\projects\QA-Tool`) first, then `gh auth login` → `gh repo create qa-tool-v2 --public --source=. --remote=origin --push`.
+5. Optional: group History by day; "Test model" button in Admin (1-call key/model check); Anthropic credits were low (console.anthropic.com → Plans & Billing) — switch active model to a funded key/profile if it recurs.
 
 **How to run:**
 ```
@@ -21,10 +23,12 @@ cd backend  && npm run dev    # http://localhost:3001  (nodemon — auto-reloads
 cd frontend && npm run dev    # http://localhost:5173
 ```
 
-**Gotchas (bit us this session):**
-- After backend code changes, **restart with `npm run dev`** — plain `npm start` (node) does NOT auto-reload, so new routes 404 and logic looks "not applied".
-- Only one backend on **port 3001** at a time (`EADDRINUSE` = an old instance is still running — stop it first).
-- Screenshots/findings appear only on **new** audits (captured at run time), not on old saved reports.
+**Gotchas (keep biting us):**
+- After backend code changes, **restart with `npm run dev`** — plain `npm start` (node) does NOT auto-reload, so new routes 404 and the OLD error wording keeps showing (this is how we keep spotting a stale server).
+- Only one backend on **port 3001** at a time (`EADDRINUSE` = an old instance still running — stop it first).
+- **NEVER run create/edit/DELETE tests against the running backend / its JSON stores** — that's how a real Gemini profile got deleted. GET-only or test pure functions against a temp file.
+- Screenshots/findings appear only on **new** audits.
+- Secrets to keep gitignored: `.env`, `figma-projects.json`, `ai-models.json`, `prompt-config.json`, `.claude/`.
 
 ---
 
@@ -94,6 +98,38 @@ cd frontend && npm run dev    # http://localhost:5173
 - New `lib/exportMarkdown.js`: `buildModuleMarkdown(report, label)` → markdown structured **Module → Findings & Fixes → Section-by-Section → Positives → Next steps**, with each section showing only the measured aspects mapped to the **checked** checks (`aspectsForChecks`), and `exportMarkdownZip()` → `<module>.md` + `images/*.png` in a ZIP download.
 - Wired a **"⬇ Markdown (.zip)"** button into the report Export row ([AuditReport.jsx](frontend/src/components/steps/AuditReport.jsx)). Verified the markdown output on a real stored report.
 - **Still to do (later phases):** Phase 1 = multi-module selection (→ several `.md` in one ZIP); Phase 2 = per-page-section picker (scan sections → tick which to test). Until then: one `.md` per run, all scanned sections, checked checks only.
+
+### 17. Gemini (Google) execution support — Phase B (Gemini)
+**Request:** admin sets tokens/models, user switches between multiple models in Settings — including Gemini — and they run.
+- New `backend/src/tools/geminiAdapter.js`: `makeGeminiClient(apiKey)` returns an object mimicking the Anthropic SDK surface the loop uses (`messages.create(params) → {content, stop_reason, usage}` with Anthropic-shaped text/tool_use blocks). Translates both ways to Google's `generateContent` REST API: system→systemInstruction, messages (user/assistant + tool_result + image blocks)→contents, tools(input_schema)→functionDeclarations, functionCall↔tool_use (tracks id→name per client since Gemini matches by name), usageMetadata→usage. So the agentic loop runs unchanged with `activeClient = makeGeminiClient(key)`.
+- `aiModels.service.js`: `PROVIDERS.google.runnable = true` (OpenAI still false). `audit.service.js` resolve block branches on provider: google → makeGeminiClient(profile.apiKey) (errors if no key); anthropic → per-key Anthropic client. Connection/429 retry already covers Gemini (adapter throws status/APIConnectionError-shaped errors).
+- ⚠️ **Untested against the live Gemini API** (no key at build). Syntax-checked + adapter shape verified only. Expect to iterate on the real call (schema/function-response format). Did NOT test against the user's live backend (per the no-destructive-tests rule).
+- To use: restart backend → Admin → AI Models: set a Gemini profile (provider Google, model e.g. gemini-2.0-flash) + paste key via Edit → set active (Settings dropdown) → run audit.
+
+### 16. Edit AI model token (Admin) + choose model in Settings
+**Request:** add option in Admin to edit a model's token; in Settings choose which model runs audits.
+- **Admin edit:** new `updateProfile(id, {label,model,provider,apiKey})` (`aiModels.service.js`) — blank apiKey keeps the current key; route `PUT /api/admin/ai-models/:id` (registered after `/active`). AdminPanel AI Models table got an **Edit** button → loads the profile into the form ("Save changes"/"Cancel"); key field blank = keep current.
+- **Settings selector:** SettingsPanel loads `listAiModels()`; Audit Run Settings now has an **"AI model used for audits"** dropdown (when profiles exist) → `setActiveAiModel(id)`; the preset **Model** field is labelled as the fallback when a profile is active.
+- Frontend builds clean; backend syntax-checked.
+- ⚠️ **Incident:** while verifying the edit endpoint, my test backend crashed on `EADDRINUSE` (the user's backend already had :3001), so my `curl` add/delete hit the USER'S live store and **deleted their real "Gemini AI" profile** (key lost). Restored a "Gemini AI" placeholder with an empty key (re-enter via Edit) and cleared the active fake key. Lesson saved to memory: never run create/edit/DELETE tests against the user's running backend/stores; verify my own instance actually bound the port first.
+
+### 15. Accurate ("perfect") token usage in Admin
+**Request:** Admin should show perfect/accurate token use.
+- Bug: `addUsage` was only called on a **successful** finalize, so tokens spent by audits that **failed** mid-run (credit error, connection drop, max-iterations) were never counted → Admin total under-reported.
+- **Fix** (`audit.service.js`): wrapped the agentic loop in `try { … } finally { if (usage.calls > 0) addUsage(usage) }` so cumulative usage is recorded on **every** exit (success or failure), exactly once. Removed the old success-only `addUsage`.
+- Admin **Token spend** panel already showed Input/Output/Total/since/reset; added an **"Avg / audit"** row. Backend restart needed to apply.
+
+### 14. AI Models manager (multi-model + per-model API key) — Phase A
+**Request:** Admin option to add/select multiple AI models and add a token. Chosen: model + its OWN API key per entry; providers = "other too" (but executed in phases).
+- **Phase A (done):** add multiple model profiles in **Admin → 🤖 AI Models**, each with provider + model id + its own API key; pick the **active** one; remove. Keys stored backend-side, shown masked. The active profile **overrides the model and uses its own key** for audits — so you can add a *funded* Claude key (or cheaper Haiku) and switch instantly when one hits "credit too low".
+- **Claude (Anthropic) runs today.** OpenAI/Gemini profiles can be saved/selected but are **gated**: selecting one makes an audit refuse up-front (`event: error` before any API call — verified, no credits/browser used) with a clear "provider not wired yet" message.
+- Backend: `aiModels.service.js` → `backend/ai-models.json` `{profiles:[{id,label,provider,model,apiKey,createdAt}], activeId}` (gitignored — has keys); `PROVIDERS` map with `runnable` flag; routes under `/api/admin/ai-models` (list/add/active/delete). `audit.service.js` resolves the active profile → overrides `model`, builds a per-key Anthropic client (`activeClient`), gates non-runnable providers. Client/model verified via CRUD + gating tests.
+- **Phase B (next, needs your test key):** OpenAI/Gemini adapters so those providers actually run the agentic loop (different function-calling formats + SDKs).
+
+### 13. "Connection error" on a run → now retried
+**Symptom:** audit ended on the Report step with "✗ Connection error." (backend was up, network to Anthropic fine).
+- Cause: that message is the Anthropic SDK's `APIConnectionError` — the backend's connection to `api.anthropic.com` dropped mid-run (a transient network blip, or the backend restarting mid-audit while files were being edited / `nodemon` reload). The retry logic only retried Anthropic *overload* (429/500/503/529), not connection drops, so one blip killed the whole audit.
+- **Fix** (`audit.service.js`): added `isConnectionError()` (APIConnectionError / fetch failed / ECONNRESET / ETIMEDOUT / ENOTFOUND / socket hang up, incl. `err.cause`) and folded it into `isRetryable`, so `createWithRetry` now backs off and retries dropped connections (status: "Connection to Claude dropped — retrying…"). Needs backend restart.
 
 ### 12. Meaningful report IDs + cleaner date/time History
 **Request:** Maintain history date/time-wise; don't use IDs like `QA-MQ7ZK2MX` — use proper, meaningful, easy-to-understand labels.

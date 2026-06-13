@@ -16,6 +16,8 @@ import { getSettings } from './settings.service.js'
 import { addUsage } from './usage.service.js'
 import { resolveToken as resolveFigmaToken } from './figmaProjects.service.js'
 import { getActiveInstructions } from './promptConfig.service.js'
+import { getActiveProfile } from './aiModels.service.js'
+import { makeGeminiClient } from '../tools/geminiAdapter.js'
 
 const anthropic = new Anthropic({ apiKey: config.keys.claude })
 
@@ -33,15 +35,26 @@ const MAX_RESULT_CHARS = 200_000
 const capText = (s) =>
   s.length > MAX_RESULT_CHARS ? s.slice(0, MAX_RESULT_CHARS) + '…[truncated]' : s
 
-// Transient Anthropic errors worth retrying (server busy / overloaded / rate).
+// A transient network/connection failure to the Anthropic API (DNS blip, socket
+// reset, dropped stream, the SDK's APIConnectionError "Connection error.").
+// Worth retrying — a brief blip shouldn't kill the whole audit.
+const isConnectionError = (e) =>
+  e?.name === 'APIConnectionError' ||
+  e?.name === 'APIConnectionTimeoutError' ||
+  /connection error|fetch failed|network error|socket hang up|terminated|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED/i.test(e?.message || '') ||
+  /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|UND_ERR/i.test(String(e?.cause?.code || e?.cause?.message || ''))
+
+// Transient Anthropic errors worth retrying (server busy / overloaded / rate /
+// dropped connection).
 const isRetryable = (e) =>
   [429, 500, 503, 529].includes(e?.status) ||
   e?.error?.error?.type === 'overloaded_error' ||
   e?.error?.type === 'overloaded_error' ||
-  /overloaded|rate.?limit|temporarily/i.test(e?.message || '')
+  /overloaded|rate.?limit|temporarily/i.test(e?.message || '') ||
+  isConnectionError(e)
 
-// Call Claude with retry + exponential backoff so a brief overload (HTTP 529)
-// doesn't kill the whole audit. Emits a visible status while waiting.
+// Call Claude with retry + exponential backoff so a brief overload (HTTP 529) or
+// a dropped connection doesn't kill the whole audit. Emits a visible status.
 async function createWithRetry(client, params, emit, maxRetries = 4) {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -49,8 +62,9 @@ async function createWithRetry(client, params, emit, maxRetries = 4) {
     } catch (err) {
       if (!isRetryable(err) || attempt >= maxRetries) throw err
       const waitMs = Math.min(8000, 800 * 2 ** attempt)
+      const why = isConnectionError(err) ? 'Connection to Claude dropped' : 'Claude is busy (overloaded)'
       emit('status', {
-        message: `Claude is busy (overloaded) — retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${maxRetries})…`,
+        message: `${why} — retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${maxRetries})…`,
       })
       await new Promise(r => setTimeout(r, waitMs))
     }
@@ -107,12 +121,44 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
   // Apply persisted settings: model / token budget / iteration cap, plus which
   // tools the agent is allowed to use. Falls back to the constants above.
   const settings   = await getSettings()
-  const model       = settings.audit.model         || MODEL
+  let   model       = settings.audit.model         || MODEL
   const maxTokens    = settings.audit.maxTokens     || MAX_TOKENS
   const maxIterations = settings.audit.maxIterations || MAX_ITERATIONS
   const temperature = settings.audit.temperature
   const isEnabled   = (name) => settings.enabledTools[name] !== false
   const activeTools = TOOL_DEFINITIONS.filter(t => isEnabled(t.name))
+
+  // Active AI model profile (Admin → AI Models): overrides the model and uses
+  // its OWN API key + provider. Claude runs natively; Gemini runs via an adapter
+  // that mimics the Anthropic client. Other providers are gated until wired.
+  // Only override the injected client when it's the shared default (tests pass
+  // their own client and must keep it).
+  let activeClient = client
+  try {
+    const profile = await getActiveProfile()
+    if (profile) {
+      if (!profile.runnable) {
+        emit('error', {
+          message: `Active AI model "${profile.label}" uses provider "${profile.provider}", which can't run audits yet. Pick a Claude or Gemini model in Admin → AI Models.`,
+        })
+        return null
+      }
+      if (profile.model) model = profile.model
+
+      if (profile.provider === 'google') {
+        if (!profile.apiKey) {
+          emit('error', { message: `The active model "${profile.label}" (Gemini) has no API key. Add one in Admin → AI Models → Edit.` })
+          return null
+        }
+        activeClient = makeGeminiClient(profile.apiKey)
+      } else { // anthropic
+        if (client === anthropic && profile.apiKey) activeClient = new Anthropic({ apiKey: profile.apiKey })
+      }
+      emit('status', { message: `Using AI model: ${profile.label} (${profile.model})`, progress: 3 })
+    }
+  } catch (err) {
+    console.warn('[audit] ai-model resolve failed:', err.message)
+  }
 
   // Detect whether this is a live production site or still in dev/staging so
   // the whole report is framed correctly (a pre-launch site isn't marked down
@@ -207,8 +253,13 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
   emit('status', { message: 'Connecting to Claude AI…', progress: 8 })
 
   // ── Agentic loop: Claude calls tools until it has enough data ───────────────
+  // Wrapped in try/finally so the cumulative token counter is updated on EVERY
+  // exit — success, max-iterations, or a thrown error (e.g. credit/connection
+  // failure mid-run). This keeps the Admin token total accurate, not just for
+  // audits that finished cleanly.
+  try {
   for (let iteration = 1; iteration <= maxIterations; iteration++) {
-    const response = await createWithRetry(client, {
+    const response = await createWithRetry(activeClient, {
       model,
       max_tokens: maxTokens,
       temperature,
@@ -270,8 +321,8 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
         report.headline  = (report.headline || 'Report generated') + ' (truncated — max_tokens reached)'
       }
       report.usage = { ...usage, totalTokens: usage.inputTokens + usage.outputTokens }
-      // Roll this audit's tokens into the cumulative counter (best-effort).
-      addUsage(usage).catch(() => {})
+      // (Cumulative usage is rolled up in the loop's `finally` so failed audits
+      // are counted too — see below.)
 
       // Visual evidence is attached only when a selected check actually needs it
       // — i.e. a ticked check uses the screenshot tool, or Claude already
@@ -462,4 +513,9 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
 
   emit('error', { message: 'Max iterations reached without final report' })
   return null
+  } finally {
+    // Record token spend on any exit — including failed/aborted audits — so the
+    // Admin token total reflects real usage. Only when at least one call ran.
+    if (usage.calls > 0) addUsage(usage).catch(() => {})
+  }
 }

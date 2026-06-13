@@ -16,6 +16,7 @@ import {
   getHistoryStats, runHistoryMaintenance,
   getUsage, resetUsage,
   listFigmaProjects, addFigmaProject, deleteFigmaProject, setActiveFigmaProject,
+  listAiModels, setActiveAiModel,
 } from '../api/client.js'
 import { MODULES } from '../config/modules.js'
 
@@ -43,17 +44,19 @@ export default function SettingsPanel({ open, onClose, health }) {
   const [purgeDays, setPurgeDays] = useState(30)
   const [figma,     setFigma]     = useState({ projects: [], activeId: '' })
   const [newProj,   setNewProj]   = useState({ name: '', token: '' })
+  const [aiModels,  setAiModels]  = useState({ profiles: [], activeId: '' })
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [s, st, u, fp] = await Promise.all([getSettings(), getHistoryStats(), getUsage(), listFigmaProjects()])
+      const [s, st, u, fp, ai] = await Promise.all([getSettings(), getHistoryStats(), getUsage(), listFigmaProjects(), listAiModels()])
       setSettings(s.settings)
       setTools(s.tools)
       setPresets(s.modelPresets || [])
       setStats(st)
       setUsage(u)
       setFigma(fp)
+      setAiModels(ai)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -142,6 +145,13 @@ export default function SettingsPanel({ open, onClose, health }) {
     catch (err) { setError(err.message) } finally { setSaving(false) }
   }
 
+  // Pick which AI model profile runs audits ('' = none → use the Model below).
+  const chooseAiModel = async (id) => {
+    setSaving(true); setError(null); setNotice(null)
+    try { setAiModels(await setActiveAiModel(id)); setNotice('Audit model updated') }
+    catch (err) { setError(err.message) } finally { setSaving(false) }
+  }
+
   const keys = health?.keys || {}
   const KEY_ROWS = [
     { id: 'claude', label: 'Claude API key', required: true },
@@ -225,8 +235,28 @@ export default function SettingsPanel({ open, onClose, health }) {
             <section className="settings-section">
               <div className="settings-title">Audit Run Settings</div>
 
+              {/* Which AI model runs audits. If model profiles exist (Admin →
+                  AI Models), the chosen one overrides the preset Model below. */}
+              {aiModels.profiles.length > 0 && (
+                <label className="settings-field">
+                  <span>AI model used for audits</span>
+                  <select
+                    className="history-filter"
+                    value={aiModels.activeId || ''}
+                    onChange={e => chooseAiModel(e.target.value)}
+                  >
+                    <option value="">Use the preset Model below (no profile)</option>
+                    {aiModels.profiles.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.label} — {p.model}{p.runnable ? '' : ' (not wired)'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
               <label className="settings-field">
-                <span>Model</span>
+                <span>Model {aiModels.activeId ? '(fallback — a profile is active above)' : ''}</span>
                 <select
                   className="history-filter"
                   value={settings.audit.model}

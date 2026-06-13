@@ -196,6 +196,56 @@ export async function deletePromptVersion(id) {
   return r.json()
 }
 
+// ── AI model profiles (multiple models, each with its own API key) ───────────
+
+export async function listAiModels() {
+  const r = await fetch(`${API_BASE}/admin/ai-models`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json() // { profiles, activeId, providers }
+}
+
+export async function addAiModel(profile) {
+  const r = await fetch(`${API_BASE}/admin/ai-models`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(profile), // { label, provider, model, apiKey }
+  })
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}))
+    throw new Error(e.error || `HTTP ${r.status}`)
+  }
+  return r.json()
+}
+
+export async function updateAiModel(id, patch) {
+  const r = await fetch(`${API_BASE}/admin/ai-models/${encodeURIComponent(id)}`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(patch), // { label?, model?, provider?, apiKey? } (blank apiKey = keep)
+  })
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}))
+    throw new Error(e.error || `HTTP ${r.status}`)
+  }
+  return r.json()
+}
+
+export async function setActiveAiModel(id) {
+  const r = await fetch(`${API_BASE}/admin/ai-models/active`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ id }),
+  })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
+export async function deleteAiModel(id) {
+  const r = await fetch(`${API_BASE}/admin/ai-models/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
 // Active backend config (keys as set/not-set flags, mode, frontend url, etc.).
 export async function getAdminConfig() {
   const r = await fetch(`${API_BASE}/admin/config`)
