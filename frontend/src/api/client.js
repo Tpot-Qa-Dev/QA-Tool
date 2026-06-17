@@ -19,19 +19,19 @@ export async function checkHealth() {
 // module filter and paging. Returns { reports, total, limit, offset }.
 export async function listHistory({ q, module, limit, offset } = {}) {
   const params = new URLSearchParams()
-  if (q)            params.set('q', q)
-  if (module)       params.set('module', module)
-  if (limit  != null) params.set('limit', limit)
+  if (q) params.set('q', q)
+  if (module) params.set('module', module)
+  if (limit != null) params.set('limit', limit)
   if (offset != null) params.set('offset', offset)
   const qs = params.toString()
-  const r  = await fetch(`${API_BASE}/history${qs ? `?${qs}` : ''}`)
+  const r = await fetch(`${API_BASE}/history${qs ? `?${qs}` : ''}`)
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   const data = await r.json()
   return {
     reports: data.reports || [],
-    total:   data.total ?? (data.reports || []).length,
-    limit:   data.limit ?? 25,
-    offset:  data.offset ?? 0,
+    total: data.total ?? (data.reports || []).length,
+    limit: data.limit ?? 25,
+    offset: data.offset ?? 0,
   }
 }
 
@@ -47,9 +47,9 @@ export async function getHistoryReport(id) {
 // downloading a file. Returns the saved metadata row.
 export async function saveHistoryReport(id, report) {
   const r = await fetch(`${API_BASE}/history/${encodeURIComponent(id)}`, {
-    method:  'PUT',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ report }),
+    body: JSON.stringify({ report }),
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -78,9 +78,9 @@ export async function getSettings() {
 // Persist a settings patch ({ audit?, enabledTools? }). Returns the saved state.
 export async function saveSettings(patch) {
   const r = await fetch(`${API_BASE}/settings`, {
-    method:  'PUT',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(patch),
+    body: JSON.stringify(patch),
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -106,23 +106,9 @@ export async function resetUsage() {
 // the section picker. Returns { url, sections: [{index, name, tag, counts}] }.
 export async function listSections(url) {
   const r = await fetch(`${API_BASE}/sections`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ url }),
-  })
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({}))
-    throw new Error(e.error || `HTTP ${r.status}`)
-  }
-  return r.json()
-}
-
-// Generate a section-by-section live-web report (deterministic, no Claude).
-export async function runSectionReport(url) {
-  const r = await fetch(`${API_BASE}/section-report`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ url }),
+    body: JSON.stringify({ url }),
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -135,7 +121,7 @@ export async function runSectionReport(url) {
 
 export async function getAdminOverview({ days, module } = {}) {
   const p = new URLSearchParams()
-  if (days)   p.set('days', days)
+  if (days) p.set('days', days)
   if (module) p.set('module', module)
   const qs = p.toString()
   const r = await fetch(`${API_BASE}/admin/overview${qs ? `?${qs}` : ''}`)
@@ -168,9 +154,9 @@ export async function getPromptVersion(id) {
 // Save the edited body as a new version (becomes active).
 export async function savePromptVersion(label, body) {
   const r = await fetch(`${API_BASE}/admin/prompt-config`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ label, body }),
+    body: JSON.stringify({ label, body }),
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -182,16 +168,18 @@ export async function savePromptVersion(label, body) {
 // Restore (make active) a version, or 'default' for the built-in prompt.
 export async function setActivePromptVersion(id) {
   const r = await fetch(`${API_BASE}/admin/prompt-config/active`, {
-    method:  'PUT',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ id }),
+    body: JSON.stringify({ id }),
   })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }
 
 export async function deletePromptVersion(id) {
-  const r = await fetch(`${API_BASE}/admin/prompt-config/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const r = await fetch(`${API_BASE}/admin/prompt-config/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }
@@ -206,9 +194,9 @@ export async function listAiModels() {
 
 export async function addAiModel(profile) {
   const r = await fetch(`${API_BASE}/admin/ai-models`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(profile), // { label, provider, model, apiKey }
+    body: JSON.stringify(profile), // { label, provider, model, apiKey }
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -219,9 +207,9 @@ export async function addAiModel(profile) {
 
 export async function updateAiModel(id, patch) {
   const r = await fetch(`${API_BASE}/admin/ai-models/${encodeURIComponent(id)}`, {
-    method:  'PUT',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(patch), // { label?, model?, provider?, apiKey? } (blank apiKey = keep)
+    body: JSON.stringify(patch), // { label?, model?, provider?, apiKey? } (blank apiKey = keep)
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -232,16 +220,18 @@ export async function updateAiModel(id, patch) {
 
 export async function setActiveAiModel(id) {
   const r = await fetch(`${API_BASE}/admin/ai-models/active`, {
-    method:  'PUT',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ id }),
+    body: JSON.stringify({ id }),
   })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }
 
 export async function deleteAiModel(id) {
-  const r = await fetch(`${API_BASE}/admin/ai-models/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const r = await fetch(`${API_BASE}/admin/ai-models/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }
@@ -256,9 +246,9 @@ export async function getAdminConfig() {
 // Update .env ({ claudeKey?, psiKey?, figmaToken?, nodeEnv?, frontendUrl?, headless? }).
 export async function updateAdminConfig(patch) {
   const r = await fetch(`${API_BASE}/admin/config`, {
-    method:  'PUT',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(patch),
+    body: JSON.stringify(patch),
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -278,9 +268,9 @@ export async function getCustomChecks() {
 
 export async function addCustomCheck(moduleId, item) {
   const r = await fetch(`${API_BASE}/custom-checks`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ moduleId, item }),
+    body: JSON.stringify({ moduleId, item }),
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -290,17 +280,23 @@ export async function addCustomCheck(moduleId, item) {
 }
 
 export async function updateCustomCheck(moduleId, id, patch) {
-  const r = await fetch(`${API_BASE}/custom-checks/${encodeURIComponent(moduleId)}/${encodeURIComponent(id)}`, {
-    method:  'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(patch),
-  })
+  const r = await fetch(
+    `${API_BASE}/custom-checks/${encodeURIComponent(moduleId)}/${encodeURIComponent(id)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    },
+  )
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }
 
 export async function deleteCustomCheck(moduleId, id) {
-  const r = await fetch(`${API_BASE}/custom-checks/${encodeURIComponent(moduleId)}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const r = await fetch(
+    `${API_BASE}/custom-checks/${encodeURIComponent(moduleId)}/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  )
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }
@@ -308,9 +304,9 @@ export async function deleteCustomCheck(moduleId, id) {
 // Enable/disable a BUILT-IN check by id for a module.
 export async function setBuiltinDisabled(moduleId, checkId, disabled) {
   const r = await fetch(`${API_BASE}/custom-checks/builtin`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ moduleId, checkId, disabled }),
+    body: JSON.stringify({ moduleId, checkId, disabled }),
   })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
@@ -327,9 +323,9 @@ export async function getHistoryStats() {
 // action: 'clear' | 'rebuild' | 'purge' (purge also needs { days }).
 export async function runHistoryMaintenance(action, extra = {}) {
   const r = await fetch(`${API_BASE}/history/maintenance`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ action, ...extra }),
+    body: JSON.stringify({ action, ...extra }),
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -350,9 +346,9 @@ export async function listFigmaProjects() {
 // Add a named project token.
 export async function addFigmaProject(name, token) {
   const r = await fetch(`${API_BASE}/figma-projects`, {
-    method:  'POST',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ name, token }),
+    body: JSON.stringify({ name, token }),
   })
   if (!r.ok) {
     const e = await r.json().catch(() => ({}))
@@ -363,7 +359,9 @@ export async function addFigmaProject(name, token) {
 
 // Delete a project token by id.
 export async function deleteFigmaProject(id) {
-  const r = await fetch(`${API_BASE}/figma-projects/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const r = await fetch(`${API_BASE}/figma-projects/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
 }
@@ -371,9 +369,9 @@ export async function deleteFigmaProject(id) {
 // Set (or clear with '') the active default project.
 export async function setActiveFigmaProject(id) {
   const r = await fetch(`${API_BASE}/figma-projects/active`, {
-    method:  'PUT',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ id }),
+    body: JSON.stringify({ id }),
   })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json()
@@ -382,13 +380,24 @@ export async function setActiveFigmaProject(id) {
 // Run a QA audit — streams events via SSE
 // onEvent(event: string, data: any) called for each SSE event
 // Returns a promise that resolves with the final report
-export function runAudit({ url, figmaUrl, module, checks, requiredTools, reportId, environmentHint }, onEvent) {
+export function runAudit(
+  { url, figmaUrl, module, checks, requiredTools, reportId, environmentHint },
+  onEvent,
+) {
   return new Promise(async (resolve, reject) => {
     try {
       const res = await fetch(`${API_BASE}/audit`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ url, figmaUrl, module, checks, requiredTools, reportId, environmentHint }),
+        body: JSON.stringify({
+          url,
+          figmaUrl,
+          module,
+          checks,
+          requiredTools,
+          reportId,
+          environmentHint,
+        }),
       })
 
       if (!res.ok) {
@@ -396,9 +405,9 @@ export function runAudit({ url, figmaUrl, module, checks, requiredTools, reportI
         return reject(new Error(err.error || `HTTP ${res.status}`))
       }
 
-      const reader  = res.body.getReader()
+      const reader = res.body.getReader()
       const decoder = new TextDecoder()
-      let   buffer  = ''
+      let buffer = ''
 
       // Process one or more complete SSE chunks out of `buffer` (called both
       // mid-stream and once more on stream end to drain any trailing chunk).
@@ -408,20 +417,22 @@ export function runAudit({ url, figmaUrl, module, checks, requiredTools, reportI
 
         for (const chunk of chunks) {
           if (!chunk.trim()) continue
-          const lines     = chunk.split('\n')
-          const eventLine = lines.find(l => l.startsWith('event:'))
-          const dataLine  = lines.find(l => l.startsWith('data:'))
+          const lines = chunk.split('\n')
+          const eventLine = lines.find((l) => l.startsWith('event:'))
+          const dataLine = lines.find((l) => l.startsWith('data:'))
 
           if (!eventLine || !dataLine) continue
 
           const event = eventLine.replace('event:', '').trim()
-          let   data  = null
-          try { data = JSON.parse(dataLine.replace('data:', '').trim()) } catch {}
+          let data = null
+          try {
+            data = JSON.parse(dataLine.replace('data:', '').trim())
+          } catch {}
 
           onEvent(event, data)
 
           if (event === 'complete') resolve(data?.report)
-          if (event === 'error')    reject(new Error(data?.message || 'Audit error'))
+          if (event === 'error') reject(new Error(data?.message || 'Audit error'))
         }
       }
 

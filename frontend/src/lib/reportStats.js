@@ -12,20 +12,20 @@ export function toResultItems(report) {
   if (report.modules) {
     for (const [name, m] of Object.entries(report.modules)) {
       items.push({
-        label:   name,
+        label: name,
         message: m.summary || `Module score ${m.score ?? '—'}/100`,
-        status:  m.status || 'warn',
-        detail:  `score ${m.score ?? '—'}/100`,
+        status: m.status || 'warn',
+        detail: `score ${m.score ?? '—'}/100`,
       })
     }
   }
 
   for (const c of report.criticalIssues || []) {
     items.push({
-      label:   c.issue,
+      label: c.issue,
       message: c.fix || '',
-      status:  c.priority === 'P0' ? 'fail' : 'warn',
-      detail:  [c.priority, c.owner].filter(Boolean).join(' · '),
+      status: c.priority === 'P0' ? 'fail' : 'warn',
+      detail: [c.priority, c.owner].filter(Boolean).join(' · '),
     })
   }
 
@@ -46,9 +46,9 @@ export function reportStats(report) {
   const items = toResultItems(report)
   return {
     items,
-    pass:  items.filter(i => i.status === 'pass').length,
-    warn:  items.filter(i => i.status === 'warn').length,
-    fail:  items.filter(i => i.status === 'fail').length,
+    pass: items.filter((i) => i.status === 'pass').length,
+    warn: items.filter((i) => i.status === 'warn').length,
+    fail: items.filter((i) => i.status === 'fail').length,
     score: typeof report?.overallScore === 'number' ? report.overallScore : 0,
   }
 }

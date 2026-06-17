@@ -9,7 +9,11 @@ export const normalizeUrl = (u) => u.trim().toLowerCase().replace(/\/+$/, '')
 
 // Hostname of a URL, or '' if it cannot be parsed.
 function hostOf(value) {
-  try { return new URL(value.trim()).hostname } catch { return '' }
+  try {
+    return new URL(value.trim()).hostname
+  } catch {
+    return ''
+  }
 }
 
 // Validate that a value is a proper http/https link. When `allowFile` is set

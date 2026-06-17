@@ -11,23 +11,32 @@
 import JSZip from 'jszip'
 
 // Filesystem-safe slug for file names.
-const slug = (s) => String(s || 'report')
-  .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'report'
+const slug = (s) =>
+  String(s || 'report')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'report'
 
 // Strip characters that would break markdown image alt text.
-const altText = (s) => String(s || '').replace(/[[\]\r\n]/g, ' ').trim()
+const altText = (s) =>
+  String(s || '')
+    .replace(/[[\]\r\n]/g, ' ')
+    .trim()
 
 // Which measured aspects to show per section, from the checked checks — mirrors
 // the in-app logic so the markdown matches the screen. No clear match → show all.
 function aspectsForChecks(checks = []) {
-  const has = (...kw) => checks.some(c => kw.some(k => c.toLowerCase().includes(k)))
+  const has = (...kw) => checks.some((c) => kw.some((k) => c.toLowerCase().includes(k)))
   const show = {
     typography: has('typograph', 'font', 'heading', 'text', 'body'),
-    colors:     has('color', 'colour', 'background'),
-    spacing:    has('spacing', 'padding', 'margin'),
-    layout:     has('layout', 'grid', 'align', 'respons', 'column'),
+    colors: has('color', 'colour', 'background'),
+    spacing: has('spacing', 'padding', 'margin'),
+    layout: has('layout', 'grid', 'align', 'respons', 'column'),
   }
-  return Object.values(show).some(Boolean) ? show : { typography: true, colors: true, spacing: true, layout: true }
+  return Object.values(show).some(Boolean)
+    ? show
+    : { typography: true, colors: true, spacing: true, layout: true }
 }
 
 // Every finding (per-module + critical issues), worst-first.
@@ -35,12 +44,15 @@ const SEV_RANK = { critical: 0, p0: 0, high: 1, p1: 2, medium: 2, p2: 3, low: 4 
 function collectFindings(report) {
   const out = []
   for (const m of Object.values(report?.modules || {})) {
-    for (const f of (m.findings || [])) out.push(f)
+    for (const f of m.findings || []) out.push(f)
   }
-  for (const c of (report?.criticalIssues || [])) out.push({ ...c, severity: c.severity || c.priority })
-  return out.sort((a, b) =>
-    (SEV_RANK[String(a.severity || a.priority).toLowerCase()] ?? 2) -
-    (SEV_RANK[String(b.severity || b.priority).toLowerCase()] ?? 2))
+  for (const c of report?.criticalIssues || [])
+    out.push({ ...c, severity: c.severity || c.priority })
+  return out.sort(
+    (a, b) =>
+      (SEV_RANK[String(a.severity || a.priority).toLowerCase()] ?? 2) -
+      (SEV_RANK[String(b.severity || b.priority).toLowerCase()] ?? 2),
+  )
 }
 
 // Build the markdown body + the list of images to embed for ONE module's report.
@@ -58,12 +70,17 @@ export function buildModuleMarkdown(report, moduleLabel) {
   L(`- **Generated:** ${new Date(report.generatedAt || Date.now()).toLocaleString()}`)
   if (report.environment) {
     const env = report.environment
-    L(`- **Environment:** ${env.environment}${env.isProduction ? ' (live production)' : ' — not live, reviewed as pre-launch'}`)
+    L(
+      `- **Environment:** ${env.environment}${env.isProduction ? ' (live production)' : ' — not live, reviewed as pre-launch'}`,
+    )
   }
   L(`- **Score:** ${report.overallScore ?? '—'}/100 (grade ${report.grade || '—'})`)
   if (checks.length) L(`- **Checks tested:** ${checks.join(', ')}`)
   L()
-  if (report.headline) { L(`> ${report.headline}`); L() }
+  if (report.headline) {
+    L(`> ${report.headline}`)
+    L()
+  }
 
   // ── Findings & Fixes (page-wide problems; scoped to checked checks already) ─
   const findings = collectFindings(report)
@@ -74,13 +91,34 @@ export function buildModuleMarkdown(report, moduleLabel) {
       const sev = String(f.severity || f.priority || 'medium').toUpperCase()
       L(`### [${sev}] ${f.issue || 'Issue'}`)
       L()
-      if (f.problem) { L(`**Problem:** ${f.problem}`); L() }
+      if (f.problem) {
+        L(`**Problem:** ${f.problem}`)
+        L()
+      }
       const sol = f.solution || f.fix
-      if (sol) { L(`**Solution:** ${sol}`); L() }
-      if (f.location) { L(`**Location:** ${f.location}`); L() }
+      if (sol) {
+        L(`**Solution:** ${sol}`)
+        L()
+      }
+      if (f.location) {
+        L(`**Location:** ${f.location}`)
+        L()
+      }
       const curCode = f.codeProblem || f.codeActual
-      if (curCode) { L('**Current code:**'); L('```html'); L(curCode); L('```'); L() }
-      if (f.codeFix) { L('**Fixed code:**'); L('```html'); L(f.codeFix); L('```'); L() }
+      if (curCode) {
+        L('**Current code:**')
+        L('```html')
+        L(curCode)
+        L('```')
+        L()
+      }
+      if (f.codeFix) {
+        L('**Fixed code:**')
+        L('```html')
+        L(f.codeFix)
+        L('```')
+        L()
+      }
       if (f.shot) {
         const path = `images/finding-${i + 1}.png`
         images.push({ path, base64: f.shot })
@@ -112,10 +150,12 @@ export function buildModuleMarkdown(report, moduleLabel) {
           L(`- **Heading:** ${m.headingFont} · ${m.headingSize} · weight ${m.headingWeight}`)
           L(`- **Body text:** ${m.bodyFont} · ${m.bodySize}`)
         }
-        if (show.colors)  L(`- **Colors:** bg ${m.background} · text ${m.textColor}`)
+        if (show.colors) L(`- **Colors:** bg ${m.background} · text ${m.textColor}`)
         if (show.spacing) L(`- **Padding (Y):** ${m.paddingY}`)
-        if (show.layout)  L(`- **Layout:** ${m.columns} · ${m.heightPx}px tall`)
-        L(`- **Elements:** ${c.links ?? 0} links · ${c.buttons ?? 0} buttons · ${c.images ?? 0} images · ${c.headings ?? 0} headings${c.forms ? ` · ${c.forms} form` : ''}`)
+        if (show.layout) L(`- **Layout:** ${m.columns} · ${m.heightPx}px tall`)
+        L(
+          `- **Elements:** ${c.links ?? 0} links · ${c.buttons ?? 0} buttons · ${c.images ?? 0} images · ${c.headings ?? 0} headings${c.forms ? ` · ${c.forms} form` : ''}`,
+        )
       }
       L()
     })
@@ -123,12 +163,16 @@ export function buildModuleMarkdown(report, moduleLabel) {
 
   // ── Positives / Next steps ──────────────────────────────────────────────────
   if (report.positives?.length) {
-    L(`## What's Working`); L()
-    report.positives.forEach(p => L(`- ${p}`)); L()
+    L(`## What's Working`)
+    L()
+    report.positives.forEach((p) => L(`- ${p}`))
+    L()
   }
   if (report.nextSteps?.length) {
-    L(`## Recommended Next Steps`); L()
-    report.nextSteps.forEach(s => L(`- ${s.step}${s.timeline ? ` _(${s.timeline})_` : ''}`)); L()
+    L(`## Recommended Next Steps`)
+    L()
+    report.nextSteps.forEach((s) => L(`- ${s.step}${s.timeline ? ` _(${s.timeline})_` : ''}`))
+    L()
   }
 
   return { md: lines.join('\n'), images }
