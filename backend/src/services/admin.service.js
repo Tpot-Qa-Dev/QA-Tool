@@ -20,35 +20,48 @@ export async function getOverview({ days, module } = {}) {
 
   const d = Number(days)
   const cutoff = Number.isFinite(d) && d > 0 ? Date.now() - d * 86_400_000 : null
-  const rows = all.filter(r => {
+  const rows = all.filter((r) => {
     if (module && r.module !== module) return false
-    if (cutoff != null) { const t = Date.parse(r.generatedAt || ''); if (!(Number.isFinite(t) && t >= cutoff)) return false }
+    if (cutoff != null) {
+      const t = Date.parse(r.generatedAt || '')
+      if (!(Number.isFinite(t) && t >= cutoff)) return false
+    }
     return true
   })
 
   // Per-module: count + average score.
   const byModuleMap = {}
-  let scoreSum = 0, scoreCount = 0
+  let scoreSum = 0,
+    scoreCount = 0
   const totals = { pass: 0, warn: 0, fail: 0 }
-  const gradeDist  = {}
+  const gradeDist = {}
   const scoreBuckets = { '80–100': 0, '50–79': 0, '0–49': 0 }
 
   for (const r of rows) {
     const key = r.module || 'unknown'
-    const m = byModuleMap[key] || (byModuleMap[key] = { module: key, count: 0, scoreSum: 0, scoreCount: 0 })
+    const m =
+      byModuleMap[key] || (byModuleMap[key] = { module: key, count: 0, scoreSum: 0, scoreCount: 0 })
     m.count++
     if (typeof r.score === 'number') {
-      m.scoreSum += r.score; m.scoreCount++; scoreSum += r.score; scoreCount++
+      m.scoreSum += r.score
+      m.scoreCount++
+      scoreSum += r.score
+      scoreCount++
       scoreBuckets[r.score >= 80 ? '80–100' : r.score >= 50 ? '50–79' : '0–49']++
     }
     totals.pass += r.counts?.pass || 0
     totals.warn += r.counts?.warn || 0
     totals.fail += r.counts?.fail || 0
-    const g = r.grade || '—'; gradeDist[g] = (gradeDist[g] || 0) + 1
+    const g = r.grade || '—'
+    gradeDist[g] = (gradeDist[g] || 0) + 1
   }
 
   const byModule = Object.values(byModuleMap)
-    .map(m => ({ module: m.module, count: m.count, avgScore: m.scoreCount ? round(m.scoreSum / m.scoreCount) : null }))
+    .map((m) => ({
+      module: m.module,
+      count: m.count,
+      avgScore: m.scoreCount ? round(m.scoreSum / m.scoreCount) : null,
+    }))
     .sort((a, b) => b.count - a.count)
 
   // Daily audit count timeline (span = filter days, else 14; capped 90).
@@ -56,7 +69,10 @@ export async function getOverview({ days, module } = {}) {
   const byDay = {}
   for (const r of rows) {
     const t = Date.parse(r.generatedAt || '')
-    if (Number.isFinite(t)) { const k = new Date(t).toISOString().slice(0, 10); byDay[k] = (byDay[k] || 0) + 1 }
+    if (Number.isFinite(t)) {
+      const k = new Date(t).toISOString().slice(0, 10)
+      byDay[k] = (byDay[k] || 0) + 1
+    }
   }
   const timeline = []
   const todayMs = Date.now()
@@ -66,17 +82,22 @@ export async function getOverview({ days, module } = {}) {
   }
 
   return {
-    reports:   rows.length,
-    avgScore:  scoreCount ? round(scoreSum / scoreCount) : null,
+    reports: rows.length,
+    avgScore: scoreCount ? round(scoreSum / scoreCount) : null,
     totals,
     byModule,
     gradeDist,
     scoreBuckets,
     timeline,
     usage,
-    filter:    { days: cutoff != null ? d : null, module: module || null },
-    recent: rows.slice(0, 8).map(r => ({
-      id: r.id, url: r.url, module: r.module, score: r.score, grade: r.grade, generatedAt: r.generatedAt,
+    filter: { days: cutoff != null ? d : null, module: module || null },
+    recent: rows.slice(0, 8).map((r) => ({
+      id: r.id,
+      url: r.url,
+      module: r.module,
+      score: r.score,
+      grade: r.grade,
+      generatedAt: r.generatedAt,
     })),
   }
 }
@@ -94,13 +115,15 @@ export async function getPrompts() {
 
   return {
     reportShape: REPORT_SHAPE,
-    standard:    buildSystemPrompt('generic', [], [], extra, null, instructions),
-    figma:       buildSystemPrompt('figma_vs_web', [], [], extra, null, instructions),
-    example:     buildSystemPrompt(
+    standard: buildSystemPrompt('generic', [], [], extra, null, instructions),
+    figma: buildSystemPrompt('figma_vs_web', [], [], extra, null, instructions),
+    example: buildSystemPrompt(
       'console_errors',
       ['JavaScript runtime errors', 'Network / Fetch failures'],
       ['playwright_console_errors'],
-      extra, null, instructions,
+      extra,
+      null,
+      instructions,
     ),
     userMessageTemplate:
       'Please run a complete QA audit on this website: <url>\n' +

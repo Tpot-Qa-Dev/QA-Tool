@@ -1,0 +1,22 @@
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+
+Host 3.130.220.174
+  HostName 3.130.220.174
+  User root
+
+Host 18.188.199.43
+  HostName 18.188.199.43
+  User root
+
+Host 18.118.62.115
+  HostName 18.118.62.115
+  User root
+
+Host *
+  IdentityFile ~/.ssh/id_rsa_shivyog
+  IdentityFile ~/.ssh/id_rsa_bhavsar
+  IdentitiesOnly yes

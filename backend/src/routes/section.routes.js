@@ -8,6 +8,6 @@ import { postSectionReport, postSectionList } from '../controllers/section.contr
 const router = Router()
 
 router.post('/section-report', postSectionReport)
-router.post('/sections',       postSectionList)
+router.post('/sections', postSectionList)
 
 export default router

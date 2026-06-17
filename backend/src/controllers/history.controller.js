@@ -3,8 +3,14 @@
 //  HTTP layer for /api/history — list, fetch by id, delete.
 // ─────────────────────────────────────────────────────────────────────────────
 import {
-  listReports, getReport, deleteReport, saveReport,
-  getStats, clearAll, purgeOlderThan, rebuildIndexNow,
+  listReports,
+  getReport,
+  deleteReport,
+  saveReport,
+  getStats,
+  clearAll,
+  purgeOlderThan,
+  rebuildIndexNow,
 } from '../services/history.service.js'
 
 export async function getHistoryList(req, res) {
@@ -72,9 +78,9 @@ export async function postHistoryMaintenance(req, res) {
   const { action, days } = req.body || {}
   try {
     let result
-    if (action === 'clear')        result = await clearAll()
+    if (action === 'clear') result = await clearAll()
     else if (action === 'rebuild') result = await rebuildIndexNow()
-    else if (action === 'purge')   result = await purgeOlderThan(days)
+    else if (action === 'purge') result = await purgeOlderThan(days)
     else return res.status(400).json({ error: `Unknown action: ${action}` })
     res.json({ ok: true, ...result })
   } catch (err) {

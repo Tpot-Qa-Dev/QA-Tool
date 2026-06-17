@@ -33,7 +33,7 @@ function sanitizeSchema(schema) {
 
 // Anthropic tool defs → Gemini functionDeclarations.
 function toFunctionDeclarations(tools = []) {
-  const decls = tools.map(t => {
+  const decls = tools.map((t) => {
     const d = { name: t.name, description: t.description || '' }
     const params = sanitizeSchema(t.input_schema)
     if (params && params.properties && Object.keys(params.properties).length) d.parameters = params
@@ -54,7 +54,9 @@ function splitToolResult(block) {
     for (const c of block.content) {
       if (c.type === 'text') responseText += c.text
       else if (c.type === 'image' && c.source?.data) {
-        imageParts.push({ inlineData: { mimeType: c.source.media_type || 'image/png', data: c.source.data } })
+        imageParts.push({
+          inlineData: { mimeType: c.source.media_type || 'image/png', data: c.source.data },
+        })
       }
     }
   }
@@ -80,7 +82,7 @@ export function makeGeminiClient(apiKey) {
           continue
         }
         const parts = []
-        for (const block of (m.content || [])) {
+        for (const block of m.content || []) {
           if (block.type === 'tool_result') {
             const name = idToName[block.tool_use_id] || 'tool'
             const { responseText, imageParts } = splitToolResult(block)
@@ -89,15 +91,21 @@ export function makeGeminiClient(apiKey) {
           } else if (block.type === 'text') {
             parts.push({ text: block.text })
           } else if (block.type === 'image' && block.source?.data) {
-            parts.push({ inlineData: { mimeType: block.source.media_type || 'image/png', data: block.source.data } })
+            parts.push({
+              inlineData: {
+                mimeType: block.source.media_type || 'image/png',
+                data: block.source.data,
+              },
+            })
           }
         }
         contents.push({ role: 'user', parts: parts.length ? parts : [{ text: '(no content)' }] })
       } else if (m.role === 'assistant') {
         const parts = []
-        for (const block of (m.content || [])) {
+        for (const block of m.content || []) {
           if (block.type === 'text' && block.text) parts.push({ text: block.text })
-          else if (block.type === 'tool_use') parts.push({ functionCall: { name: block.name, args: block.input || {} } })
+          else if (block.type === 'tool_use')
+            parts.push({ functionCall: { name: block.name, args: block.input || {} } })
         }
         contents.push({ role: 'model', parts: parts.length ? parts : [{ text: '' }] })
       }
@@ -122,12 +130,15 @@ export function makeGeminiClient(apiKey) {
         const model = params.model || 'gemini-2.0-flash'
         let res
         try {
-          res = await fetch(`${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(90_000),
-          })
+          res = await fetch(
+            `${GEMINI_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+              signal: AbortSignal.timeout(90_000),
+            },
+          )
         } catch (err) {
           // Network/abort — shape it so the loop's connection-retry catches it.
           const e = new Error(`Gemini connection error: ${err.message}`)
@@ -152,16 +163,25 @@ export function makeGeminiClient(apiKey) {
           if (p.functionCall) {
             const id = genId()
             idToName[id] = p.functionCall.name
-            content.push({ type: 'tool_use', id, name: p.functionCall.name, input: p.functionCall.args || {} })
+            content.push({
+              type: 'tool_use',
+              id,
+              name: p.functionCall.name,
+              input: p.functionCall.args || {},
+            })
             hasCall = true
           }
         }
         if (!content.length) content.push({ type: 'text', text: '' })
 
         const finish = cand?.finishReason
-        const stop_reason = hasCall ? 'tool_use' : (finish === 'MAX_TOKENS' ? 'max_tokens' : 'end_turn')
+        const stop_reason = hasCall
+          ? 'tool_use'
+          : finish === 'MAX_TOKENS'
+            ? 'max_tokens'
+            : 'end_turn'
         const usage = {
-          input_tokens:  data.usageMetadata?.promptTokenCount     || 0,
+          input_tokens: data.usageMetadata?.promptTokenCount || 0,
           output_tokens: data.usageMetadata?.candidatesTokenCount || 0,
         }
         return { content, stop_reason, usage }

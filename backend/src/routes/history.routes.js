@@ -14,12 +14,12 @@ import {
 
 const router = Router()
 
-router.get   ('/history',             getHistoryList)
+router.get('/history', getHistoryList)
 // Static sub-paths must precede the '/:id' param route so they aren't captured.
-router.get   ('/history/stats',       getHistoryStats)
-router.post  ('/history/maintenance', postHistoryMaintenance)
-router.get   ('/history/:id',         getHistoryItem)
-router.put   ('/history/:id',         putHistoryItem)
-router.delete('/history/:id',         deleteHistoryItem)
+router.get('/history/stats', getHistoryStats)
+router.post('/history/maintenance', postHistoryMaintenance)
+router.get('/history/:id', getHistoryItem)
+router.put('/history/:id', putHistoryItem)
+router.delete('/history/:id', deleteHistoryItem)
 
 export default router

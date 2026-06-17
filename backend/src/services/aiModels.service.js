@@ -23,8 +23,8 @@ const FILE = join(backendRoot, 'ai-models.json')
 // today. The rest are stored/selectable but gated at run time until wired.
 export const PROVIDERS = {
   anthropic: { label: 'Claude (Anthropic)', runnable: true },
-  google:    { label: 'Google Gemini',      runnable: true },
-  openai:    { label: 'OpenAI',             runnable: false },
+  google: { label: 'Google Gemini', runnable: true },
+  openai: { label: 'OpenAI', runnable: false },
 }
 
 async function readStore() {
@@ -33,7 +33,9 @@ async function readStore() {
     if (parsed && Array.isArray(parsed.profiles)) {
       return { profiles: parsed.profiles, activeId: parsed.activeId || '' }
     }
-  } catch { /* ignore — empty store */ }
+  } catch {
+    /* ignore — empty store */
+  }
   return { profiles: [], activeId: '' }
 }
 async function writeStore(store) {
@@ -46,8 +48,12 @@ const maskKey = (k) => {
 }
 
 const publicProfile = (p, activeId) => ({
-  id: p.id, label: p.label, provider: p.provider, model: p.model,
-  keyHint: maskKey(p.apiKey), hasKey: !!p.apiKey,
+  id: p.id,
+  label: p.label,
+  provider: p.provider,
+  model: p.model,
+  keyHint: maskKey(p.apiKey),
+  hasKey: !!p.apiKey,
   runnable: !!PROVIDERS[p.provider]?.runnable,
   active: p.id === activeId,
 })
@@ -55,16 +61,20 @@ const publicProfile = (p, activeId) => ({
 export async function listProfiles() {
   const store = await readStore()
   return {
-    profiles: store.profiles.map(p => publicProfile(p, store.activeId)),
+    profiles: store.profiles.map((p) => publicProfile(p, store.activeId)),
     activeId: store.activeId,
     providers: PROVIDERS,
   }
 }
 
 export async function addProfile({ label, provider, model, apiKey } = {}) {
-  const cleanLabel = String(label || '').trim().slice(0, 80)
+  const cleanLabel = String(label || '')
+    .trim()
+    .slice(0, 80)
   const prov = String(provider || 'anthropic')
-  const cleanModel = String(model || '').trim().slice(0, 120)
+  const cleanModel = String(model || '')
+    .trim()
+    .slice(0, 120)
   const cleanKey = String(apiKey || '').trim()
   if (!PROVIDERS[prov]) throw new Error('unknown provider')
   if (!cleanLabel) throw new Error('a label is required')
@@ -73,7 +83,10 @@ export async function addProfile({ label, provider, model, apiKey } = {}) {
   const store = await readStore()
   const profile = {
     id: 'ai_' + randomUUID().slice(0, 8),
-    label: cleanLabel, provider: prov, model: cleanModel, apiKey: cleanKey,
+    label: cleanLabel,
+    provider: prov,
+    model: cleanModel,
+    apiKey: cleanKey,
     createdAt: new Date().toISOString(),
   }
   store.profiles.push(profile)
@@ -87,7 +100,7 @@ export async function addProfile({ label, provider, model, apiKey } = {}) {
 // so the masked key in the UI doesn't have to be re-typed).
 export async function updateProfile(id, { label, model, provider, apiKey } = {}) {
   const store = await readStore()
-  const p = store.profiles.find(x => x.id === id)
+  const p = store.profiles.find((x) => x.id === id)
   if (!p) throw new Error('profile not found')
   if (typeof provider === 'string' && PROVIDERS[provider]) p.provider = provider
   if (typeof label === 'string' && label.trim()) p.label = label.trim().slice(0, 80)
@@ -99,7 +112,7 @@ export async function updateProfile(id, { label, model, provider, apiKey } = {})
 
 export async function removeProfile(id) {
   const store = await readStore()
-  store.profiles = store.profiles.filter(p => p.id !== id)
+  store.profiles = store.profiles.filter((p) => p.id !== id)
   if (store.activeId === id) store.activeId = store.profiles[0]?.id || ''
   await writeStore(store)
   return listProfilesFrom(store)
@@ -107,14 +120,14 @@ export async function removeProfile(id) {
 
 export async function setActiveProfile(id) {
   const store = await readStore()
-  if (id && !store.profiles.some(p => p.id === id)) throw new Error('profile not found')
+  if (id && !store.profiles.some((p) => p.id === id)) throw new Error('profile not found')
   store.activeId = id || ''
   await writeStore(store)
   return listProfilesFrom(store)
 }
 
 const listProfilesFrom = (store) => ({
-  profiles: store.profiles.map(p => publicProfile(p, store.activeId)),
+  profiles: store.profiles.map((p) => publicProfile(p, store.activeId)),
   activeId: store.activeId,
   providers: PROVIDERS,
 })
@@ -123,7 +136,14 @@ const listProfilesFrom = (store) => ({
 // none is set (caller falls back to Settings model + .env key).
 export async function getActiveProfile() {
   const store = await readStore()
-  const p = store.activeId && store.profiles.find(x => x.id === store.activeId)
+  const p = store.activeId && store.profiles.find((x) => x.id === store.activeId)
   if (!p) return null
-  return { id: p.id, label: p.label, provider: p.provider, model: p.model, apiKey: p.apiKey, runnable: !!PROVIDERS[p.provider]?.runnable }
+  return {
+    id: p.id,
+    label: p.label,
+    provider: p.provider,
+    model: p.model,
+    apiKey: p.apiKey,
+    runnable: !!PROVIDERS[p.provider]?.runnable,
+  }
 }

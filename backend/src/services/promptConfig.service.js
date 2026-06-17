@@ -25,7 +25,9 @@ async function readStore() {
     if (parsed && Array.isArray(parsed.versions)) {
       return { versions: parsed.versions, activeId: parsed.activeId || '' }
     }
-  } catch { /* ignore — fall through to empty store */ }
+  } catch {
+    /* ignore — fall through to empty store */
+  }
   return { versions: [], activeId: '' }
 }
 async function writeStore(store) {
@@ -35,13 +37,15 @@ async function writeStore(store) {
 // Public view: the version list (with a short preview), which is active, and the
 // built-in default body so the UI can show/restore it.
 const toPublic = (store) => ({
-  versions: store.versions.map(v => ({
-    id: v.id, label: v.label, createdAt: v.createdAt,
+  versions: store.versions.map((v) => ({
+    id: v.id,
+    label: v.label,
+    createdAt: v.createdAt,
     preview: (v.body || '').slice(0, 120),
     active: v.id === store.activeId,
   })),
   activeId: store.activeId || '',
-  usingDefault: !store.activeId || !store.versions.some(v => v.id === store.activeId),
+  usingDefault: !store.activeId || !store.versions.some((v) => v.id === store.activeId),
   defaultBody: DEFAULT_INSTRUCTIONS,
 })
 
@@ -51,9 +55,10 @@ export async function getPromptConfig() {
 
 // Full body of a single version (or the default) — for loading into the editor.
 export async function getVersionBody(id) {
-  if (!id || id === 'default') return { id: 'default', label: 'Built-in default', body: DEFAULT_INSTRUCTIONS }
+  if (!id || id === 'default')
+    return { id: 'default', label: 'Built-in default', body: DEFAULT_INSTRUCTIONS }
   const store = await readStore()
-  const v = store.versions.find(x => x.id === id)
+  const v = store.versions.find((x) => x.id === id)
   if (!v) throw new Error('version not found')
   return { id: v.id, label: v.label, body: v.body }
 }
@@ -62,7 +67,7 @@ export async function getVersionBody(id) {
 // or the built-in default when none is active.
 export async function getActiveInstructions() {
   const store = await readStore()
-  const v = store.activeId && store.versions.find(x => x.id === store.activeId)
+  const v = store.activeId && store.versions.find((x) => x.id === store.activeId)
   return v ? v.body : DEFAULT_INSTRUCTIONS
 }
 
@@ -70,7 +75,8 @@ export async function getActiveInstructions() {
 export async function saveVersion({ label, body } = {}) {
   const cleanBody = String(body || '').trim()
   if (!cleanBody) throw new Error('prompt body is required')
-  if (cleanBody.length > MAX_BODY) throw new Error(`prompt is too long (max ${MAX_BODY} characters)`)
+  if (cleanBody.length > MAX_BODY)
+    throw new Error(`prompt is too long (max ${MAX_BODY} characters)`)
 
   const store = await readStore()
   const version = {
@@ -90,7 +96,8 @@ export async function saveVersion({ label, body } = {}) {
 // Restore (make active) a previous version, or '' / 'default' for the built-in.
 export async function setActiveVersion(id) {
   const store = await readStore()
-  if (id && id !== 'default' && !store.versions.some(v => v.id === id)) throw new Error('version not found')
+  if (id && id !== 'default' && !store.versions.some((v) => v.id === id))
+    throw new Error('version not found')
   store.activeId = id && id !== 'default' ? id : ''
   await writeStore(store)
   return toPublic(store)
@@ -98,7 +105,7 @@ export async function setActiveVersion(id) {
 
 export async function deleteVersion(id) {
   const store = await readStore()
-  store.versions = store.versions.filter(v => v.id !== id)
+  store.versions = store.versions.filter((v) => v.id !== id)
   if (store.activeId === id) store.activeId = '' // fell back to default
   await writeStore(store)
   return toPublic(store)

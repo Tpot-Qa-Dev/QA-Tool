@@ -2,7 +2,12 @@
 //  controllers/figmaProjects.controller.js
 //  HTTP layer for managing project-wise Figma access tokens.
 // ─────────────────────────────────────────────────────────────────────────────
-import { listProjects, addProject, removeProject, setActiveProject } from '../services/figmaProjects.service.js'
+import {
+  listProjects,
+  addProject,
+  removeProject,
+  setActiveProject,
+} from '../services/figmaProjects.service.js'
 
 export async function getFigmaProjects(req, res) {
   try {

@@ -18,21 +18,21 @@ const env = process.env.NODE_ENV === 'production' ? 'production' : 'development'
 export const config = {
   env,
   isProd: env === 'production',
-  isDev:  env !== 'production',
-  port:        process.env.PORT || 3001,
+  isDev: env !== 'production',
+  port: process.env.PORT || 3001,
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   keys: {
     claude: process.env.CLAUDE_API_KEY || '',
-    psi:    process.env.PSI_API_KEY    || '',
-    figma:  process.env.FIGMA_TOKEN    || '',
+    psi: process.env.PSI_API_KEY || '',
+    figma: process.env.FIGMA_TOKEN || '',
   },
   playwright: {
     // HEADLESS=false in .env runs Chromium in a visible window (for debugging).
     // Any other value (or unset) keeps it headless.
     headless: process.env.HEADLESS !== 'false',
     // Browser defaults — overridden at runtime by settings.service (applyRuntime).
-    viewport:     { width: 1280, height: 800 },
+    viewport: { width: 1280, height: 800 },
     navTimeoutMs: 30_000,
-    maxLinks:     80,
+    maxLinks: 80,
   },
 }
