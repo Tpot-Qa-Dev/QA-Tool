@@ -5,10 +5,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 export function applyAppearance(ui = {}) {
   const r = document.documentElement
-  if (ui.accent)  r.style.setProperty('--accent', ui.accent)
-  else            r.style.removeProperty('--accent')
+  if (ui.accent) r.style.setProperty('--accent', ui.accent)
+  else r.style.removeProperty('--accent')
   if (ui.accent2) r.style.setProperty('--accent-2', ui.accent2)
-  else            r.style.removeProperty('--accent-2')
+  else r.style.removeProperty('--accent-2')
   r.style.setProperty('--radius', `${ui.radius ?? 14}px`)
   r.setAttribute('data-density', ui.density || 'comfortable')
   r.classList.toggle('fx-off', ui.effects === false)

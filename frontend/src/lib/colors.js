@@ -5,10 +5,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const COLORS = {
-  pass:  'var(--pass)',
-  warn:  'var(--warn)',
-  fail:  'var(--fail)',
-  info:  'var(--info)',
+  pass: 'var(--pass)',
+  warn: 'var(--warn)',
+  fail: 'var(--fail)',
+  info: 'var(--info)',
   muted: 'var(--text-muted)',
 }
 
@@ -28,14 +28,17 @@ export const statusColor = (status) => STATUS_MAP[status] || 'var(--text-muted)'
 export const scoreColor = (n) => (n >= 80 ? 'var(--pass)' : n >= 50 ? 'var(--warn)' : 'var(--fail)')
 
 // Colour for a P0/P1/P2 issue priority.
-export const priorityColor = (p) => (p === 'P0' ? 'var(--fail)' : p === 'P1' ? 'var(--warn)' : 'var(--info)')
+export const priorityColor = (p) =>
+  p === 'P0' ? 'var(--fail)' : p === 'P1' ? 'var(--warn)' : 'var(--info)'
 
 // Colour for a finding severity.
-export const severityColor = (s) => (s === 'critical' ? 'var(--fail)' : s === 'high' ? 'var(--warn)' : 'var(--info)')
+export const severityColor = (s) =>
+  s === 'critical' ? 'var(--fail)' : s === 'high' ? 'var(--warn)' : 'var(--info)'
 
 // Colour for a next-step timeline.
-export const timelineColor = (t) => (t === 'immediate' ? 'var(--fail)' : t === 'this-week' ? 'var(--warn)' : 'var(--pass)')
+export const timelineColor = (t) =>
+  t === 'immediate' ? 'var(--fail)' : t === 'this-week' ? 'var(--warn)' : 'var(--pass)'
 
 // Translucent fill / border derived from any colour — works with CSS variables.
-export const soft       = (c) => `color-mix(in srgb, ${c} 14%, transparent)`
+export const soft = (c) => `color-mix(in srgb, ${c} 14%, transparent)`
 export const softBorder = (c) => `color-mix(in srgb, ${c} 38%, transparent)`

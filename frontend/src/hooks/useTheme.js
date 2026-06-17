@@ -30,7 +30,7 @@ export function useTheme() {
   }, [theme])
 
   const toggle = useCallback(() => {
-    setTheme(t => (t === 'dark' ? 'light' : 'dark'))
+    setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
   }, [])
 
   // Set an explicit mode (used to apply the admin's default theme for fresh users).

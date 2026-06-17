@@ -8,59 +8,59 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg:            #0A0B0F;
-  --surface:       #13151C;
-  --surface-2:     #1A1D28;
-  --surface-3:     #22263A;
-  --inset:         #0D0F16;
+  --bg: #0a0b0f;
+  --surface: #13151c;
+  --surface-2: #1a1d28;
+  --surface-3: #22263a;
+  --inset: #0d0f16;
 
-  --border:        #252836;
+  --border: #252836;
   --border-strong: #333647;
 
-  --text:          #E8ECF4;
-  --text-2:        #C4C9D4;
-  --text-dim:      #9CA3AF;
-  --text-muted:    #6B7280;
-  --text-faint:    #3D4251;
+  --text: #e8ecf4;
+  --text-2: #c4c9d4;
+  --text-dim: #9ca3af;
+  --text-muted: #6b7280;
+  --text-faint: #3d4251;
 
-  --accent:        #00E5FF;
-  --accent-2:      #A78BFA;
-  --on-accent:     #0A0B0F;
+  --accent: #00e5ff;
+  --accent-2: #a78bfa;
+  --on-accent: #0a0b0f;
 
-  --pass:          #00FF94;
-  --warn:          #FF9F43;
-  --fail:          #FF4560;
-  --info:          #00E5FF;
+  --pass: #00ff94;
+  --warn: #ff9f43;
+  --fail: #ff4560;
+  --info: #00e5ff;
 
-  --shadow-sm:     0 2px 14px -6px rgba(0, 0, 0, .6);
+  --shadow-sm: 0 2px 14px -6px rgba(0, 0, 0, 0.6);
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg:            #EEF0F5;
-  --surface:       #FFFFFF;
-  --surface-2:     #F6F7FA;
-  --surface-3:     #EDEFF4;
-  --inset:         #F2F3F7;
+  --bg: #eef0f5;
+  --surface: #ffffff;
+  --surface-2: #f6f7fa;
+  --surface-3: #edeff4;
+  --inset: #f2f3f7;
 
-  --border:        #E3E5EC;
-  --border-strong: #CDD0DA;
+  --border: #e3e5ec;
+  --border-strong: #cdd0da;
 
-  --text:          #14161D;
-  --text-2:        #3A3F4C;
-  --text-dim:      #5A6072;
-  --text-muted:    #828896;
-  --text-faint:    #A6ABB8;
+  --text: #14161d;
+  --text-2: #3a3f4c;
+  --text-dim: #5a6072;
+  --text-muted: #828896;
+  --text-faint: #a6abb8;
 
-  --accent:        #0891B2;
-  --accent-2:      #7C3AED;
-  --on-accent:     #FFFFFF;
+  --accent: #0891b2;
+  --accent-2: #7c3aed;
+  --on-accent: #ffffff;
 
-  --pass:          #059669;
-  --warn:          #D97706;
-  --fail:          #DC2626;
-  --info:          #0891B2;
+  --pass: #059669;
+  --warn: #d97706;
+  --fail: #dc2626;
+  --info: #0891b2;
 
-  --shadow-sm:     0 2px 14px -6px rgba(30, 41, 80, .16);
+  --shadow-sm: 0 2px 14px -6px rgba(30, 41, 80, 0.16);
 }
