@@ -9,7 +9,11 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { config } from '../config/index.js'
 import { TOOL_DEFINITIONS, executeTool } from '../tools/index.js'
-import { auditWebSections, captureFindingHighlights, detectEnvironment } from '../tools/playwright.tools.js'
+import {
+  auditWebSections,
+  captureFindingHighlights,
+  detectEnvironment,
+} from '../tools/playwright.tools.js'
 import { buildSystemPrompt } from './prompts.js'
 import { saveReport } from './history.service.js'
 import { getSettings } from './settings.service.js'
@@ -23,12 +27,12 @@ const anthropic = new Anthropic({ apiKey: config.keys.claude })
 
 // Fallback audit parameters — overridden per run by persisted settings.
 const MODEL = 'claude-sonnet-4-6'
-const MAX_TOKENS     = 8192
+const MAX_TOKENS = 8192
 const MAX_ITERATIONS = 12
 // How many times we'll send Claude back to run still-missing required tools
 // before giving up and finalizing anyway (avoids looping on a tool that keeps
 // failing). Each nudge can still trigger several tool calls.
-const MAX_NUDGES     = 2
+const MAX_NUDGES = 2
 // Hard cap on the text length of any single tool result fed back to Claude, so
 // one unexpectedly huge payload can't blow the context window. ~55k tokens.
 const MAX_RESULT_CHARS = 200_000
@@ -41,8 +45,12 @@ const capText = (s) =>
 const isConnectionError = (e) =>
   e?.name === 'APIConnectionError' ||
   e?.name === 'APIConnectionTimeoutError' ||
-  /connection error|fetch failed|network error|socket hang up|terminated|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED/i.test(e?.message || '') ||
-  /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|UND_ERR/i.test(String(e?.cause?.code || e?.cause?.message || ''))
+  /connection error|fetch failed|network error|socket hang up|terminated|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED/i.test(
+    e?.message || '',
+  ) ||
+  /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|UND_ERR/i.test(
+    String(e?.cause?.code || e?.cause?.message || ''),
+  )
 
 // Transient Anthropic errors worth retrying (server busy / overloaded / rate /
 // dropped connection).
@@ -62,11 +70,13 @@ async function createWithRetry(client, params, emit, maxRetries = 4) {
     } catch (err) {
       if (!isRetryable(err) || attempt >= maxRetries) throw err
       const waitMs = Math.min(8000, 800 * 2 ** attempt)
-      const why = isConnectionError(err) ? 'Connection to Claude dropped' : 'Claude is busy (overloaded)'
+      const why = isConnectionError(err)
+        ? 'Connection to Claude dropped'
+        : 'Claude is busy (overloaded)'
       emit('status', {
         message: `${why} — retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${maxRetries})…`,
       })
-      await new Promise(r => setTimeout(r, waitMs))
+      await new Promise((r) => setTimeout(r, waitMs))
     }
   }
 }
@@ -74,18 +84,23 @@ async function createWithRetry(client, params, emit, maxRetries = 4) {
 // Extract the final JSON report from Claude's closing message.
 function extractReport(finalText, { url, module, allToolResults }) {
   let report = null
-  const jsonMatch = finalText.match(/```json\s*([\s\S]*?)\s*```/) ||
-                    finalText.match(/(\{[\s\S]*"overallScore"[\s\S]*\})/)
+  const jsonMatch =
+    finalText.match(/```json\s*([\s\S]*?)\s*```/) ||
+    finalText.match(/(\{[\s\S]*"overallScore"[\s\S]*\})/)
   if (jsonMatch) {
-    try { report = JSON.parse(jsonMatch[1] || jsonMatch[0]) } catch { /* fall through */ }
+    try {
+      report = JSON.parse(jsonMatch[1] || jsonMatch[0])
+    } catch {
+      /* fall through */
+    }
   }
   if (!report) {
     report = { raw: finalText, overallScore: 0, grade: 'N/A', headline: 'Report generated' }
   }
 
   report.toolResults = allToolResults
-  report.url         = url
-  report.module      = module
+  report.url = url
+  report.module = module
   report.generatedAt = new Date().toISOString()
   return report
 }
@@ -93,12 +108,14 @@ function extractReport(finalText, { url, module, allToolResults }) {
 // Build the opening user message describing the audit request.
 
 function buildUserMessage({ url, figmaUrl, checks, environment, sections }) {
-  const envLine = environment && !environment.isProduction
-    ? `Heads up: this site looks like a ${environment.environment} (not live) site — ${environment.signals.map(s => s.signal).join(', ')}. Review it as pre-launch (see the environment instructions in your system prompt).`
-    : ''
-  const sectionLine = (sections && sections.length)
-    ? `Only review these page sections of the site: ${sections.join(', ')}. Ignore all other sections — do not report on them.`
-    : ''
+  const envLine =
+    environment && !environment.isProduction
+      ? `Heads up: this site looks like a ${environment.environment} (not live) site — ${environment.signals.map((s) => s.signal).join(', ')}. Review it as pre-launch (see the environment instructions in your system prompt).`
+      : ''
+  const sectionLine =
+    sections && sections.length
+      ? `Only review these page sections of the site: ${sections.join(', ')}. Ignore all other sections — do not report on them.`
+      : ''
   return [
     `Please run a complete QA audit on this website: ${url}`,
     figmaUrl ? `Figma design URL: ${figmaUrl}` : '',
@@ -106,7 +123,9 @@ function buildUserMessage({ url, figmaUrl, checks, environment, sections }) {
     sectionLine,
     envLine,
     'Use the available Playwright tools to gather real browser data before analyzing.',
-  ].filter(Boolean).join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 // Run a full audit. Resolves with the final report; reports progress via emit().
@@ -115,18 +134,32 @@ function buildUserMessage({ url, figmaUrl, checks, environment, sections }) {
 // Map the UI's link-type choice to an environment classification.
 const HINT_TO_ENV = { local: 'development', staging: 'staging', live: 'production' }
 
-export async function runAudit({ url, figmaUrl, module = 'full', checks = [], requiredTools = [], reportId, environmentHint, figmaProject, sections }, emit, client = anthropic) {
+export async function runAudit(
+  {
+    url,
+    figmaUrl,
+    module = 'full',
+    checks = [],
+    requiredTools = [],
+    reportId,
+    environmentHint,
+    figmaProject,
+    sections,
+  },
+  emit,
+  client = anthropic,
+) {
   emit('status', { message: 'Audit started', progress: 2 })
 
   // Apply persisted settings: model / token budget / iteration cap, plus which
   // tools the agent is allowed to use. Falls back to the constants above.
-  const settings   = await getSettings()
-  let   model       = settings.audit.model         || MODEL
-  const maxTokens    = settings.audit.maxTokens     || MAX_TOKENS
+  const settings = await getSettings()
+  let model = settings.audit.model || MODEL
+  const maxTokens = settings.audit.maxTokens || MAX_TOKENS
   const maxIterations = settings.audit.maxIterations || MAX_ITERATIONS
   const temperature = settings.audit.temperature
-  const isEnabled   = (name) => settings.enabledTools[name] !== false
-  const activeTools = TOOL_DEFINITIONS.filter(t => isEnabled(t.name))
+  const isEnabled = (name) => settings.enabledTools[name] !== false
+  const activeTools = TOOL_DEFINITIONS.filter((t) => isEnabled(t.name))
 
   // Active AI model profile (Admin → AI Models): overrides the model and uses
   // its OWN API key + provider. Claude runs natively; Gemini runs via an adapter
@@ -147,14 +180,21 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
 
       if (profile.provider === 'google') {
         if (!profile.apiKey) {
-          emit('error', { message: `The active model "${profile.label}" (Gemini) has no API key. Add one in Admin → AI Models → Edit.` })
+          emit('error', {
+            message: `The active model "${profile.label}" (Gemini) has no API key. Add one in Admin → AI Models → Edit.`,
+          })
           return null
         }
         activeClient = makeGeminiClient(profile.apiKey)
-      } else { // anthropic
-        if (client === anthropic && profile.apiKey) activeClient = new Anthropic({ apiKey: profile.apiKey })
+      } else {
+        // anthropic
+        if (client === anthropic && profile.apiKey)
+          activeClient = new Anthropic({ apiKey: profile.apiKey })
       }
-      emit('status', { message: `Using AI model: ${profile.label} (${profile.model})`, progress: 3 })
+      emit('status', {
+        message: `Using AI model: ${profile.label} (${profile.model})`,
+        progress: 3,
+      })
     }
   } catch (err) {
     console.warn('[audit] ai-model resolve failed:', err.message)
@@ -194,9 +234,18 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
       confidence: 'high',
       httpStatus: detected?.httpStatus ?? null,
       signals: detected?.signals || [],
-      detected: detected ? { environment: detected.environment, isProduction: detected.isProduction, signals: detected.signals } : null,
-      summary: `Operator marked this as a ${declared} link.` +
-        (mismatch ? ` (Auto-detection saw signs of "${detected.environment}" — ${detected.signals.map(s => s.signal).join(', ') || 'no strong signals'}.)` : ''),
+      detected: detected
+        ? {
+            environment: detected.environment,
+            isProduction: detected.isProduction,
+            signals: detected.signals,
+          }
+        : null,
+      summary:
+        `Operator marked this as a ${declared} link.` +
+        (mismatch
+          ? ` (Auto-detection saw signs of "${detected.environment}" — ${detected.signals.map((s) => s.signal).join(', ') || 'no strong signals'}.)`
+          : ''),
     }
     emit('status', {
       message: `Marked as ${environmentHint} link${mismatch ? ` (auto-detection saw ${detected.environment})` : ''}`,
@@ -206,17 +255,35 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
 
   // Selected page sections to scope the audit to (Phase 2 picker). null/empty
   // = no filter (all sections). Matched by name against the scanned sections.
-  const selectedSections = Array.isArray(sections) ? sections.filter(s => typeof s === 'string' && s.trim()) : null
-  const messages       = [{ role: 'user', content: buildUserMessage({ url, figmaUrl, checks, environment, sections: selectedSections }) }]
+  const selectedSections = Array.isArray(sections)
+    ? sections.filter((s) => typeof s === 'string' && s.trim())
+    : null
+  const messages = [
+    {
+      role: 'user',
+      content: buildUserMessage({ url, figmaUrl, checks, environment, sections: selectedSections }),
+    },
+  ]
   const allToolResults = []
   // Only enforce required tools that are actually enabled — we can't force a
   // tool the operator has globally disabled in Settings.
-  const required     = [...new Set(requiredTools)].filter(isEnabled)
+  const required = [...new Set(requiredTools)].filter(isEnabled)
   // The editable persona/instructions (Admin → Prompts active version, else the
   // built-in default). Best-effort — fall back to default on any read error.
   let activeInstructions = ''
-  try { activeInstructions = await getActiveInstructions() } catch { /* use default */ }
-  const systemPrompt = buildSystemPrompt(module, checks, required, settings.audit.extraInstructions, environment, activeInstructions)
+  try {
+    activeInstructions = await getActiveInstructions()
+  } catch {
+    /* use default */
+  }
+  const systemPrompt = buildSystemPrompt(
+    module,
+    checks,
+    required,
+    settings.audit.extraInstructions,
+    environment,
+    activeInstructions,
+  )
 
   // Resolve which project-wise Figma token to use for this run (chosen project
   // → active project → .env fallback). Injected into figma_fetch calls below.
@@ -225,7 +292,8 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
     try {
       const f = await resolveFigmaToken(figmaProject)
       figmaToken = f.token
-      if (f.projectName) emit('status', { message: `Using Figma project: ${f.projectName}`, progress: 8 })
+      if (f.projectName)
+        emit('status', { message: `Using Figma project: ${f.projectName}`, progress: 8 })
     } catch (err) {
       console.warn('[audit] figma token resolve failed:', err.message)
     }
@@ -237,7 +305,7 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
   // failed instead. `failedTools` tracks the ones whose last attempt errored.
   const calledTools = new Set()
   const failedTools = new Set()
-  let   nudges      = 0
+  let nudges = 0
   // Running token tally across every Claude call this audit.
   const usage = { inputTokens: 0, outputTokens: 0, calls: 0 }
   // Whether Claude grabbed a full-page screenshot while gathering data. We don't
@@ -258,261 +326,304 @@ export async function runAudit({ url, figmaUrl, module = 'full', checks = [], re
   // failure mid-run). This keeps the Admin token total accurate, not just for
   // audits that finished cleanly.
   try {
-  for (let iteration = 1; iteration <= maxIterations; iteration++) {
-    const response = await createWithRetry(activeClient, {
-      model,
-      max_tokens: maxTokens,
-      temperature,
-      system:     systemPrompt,
-      // Omit `tools` entirely when none are enabled — the SDK rejects [].
-      ...(activeTools.length ? { tools: activeTools } : {}),
-      messages,
-    }, emit)
+    for (let iteration = 1; iteration <= maxIterations; iteration++) {
+      const response = await createWithRetry(
+        activeClient,
+        {
+          model,
+          max_tokens: maxTokens,
+          temperature,
+          system: systemPrompt,
+          // Omit `tools` entirely when none are enabled — the SDK rejects [].
+          ...(activeTools.length ? { tools: activeTools } : {}),
+          messages,
+        },
+        emit,
+      )
 
-    // Tally tokens for this call (usage may be absent on some error shapes).
-    if (response.usage) {
-      usage.inputTokens  += response.usage.input_tokens  || 0
-      usage.outputTokens += response.usage.output_tokens || 0
-      usage.calls        += 1
-    }
+      // Tally tokens for this call (usage may be absent on some error shapes).
+      if (response.usage) {
+        usage.inputTokens += response.usage.input_tokens || 0
+        usage.outputTokens += response.usage.output_tokens || 0
+        usage.calls += 1
+      }
 
-    const textBlocks = response.content.filter(b => b.type === 'text')
-    if (textBlocks.length) {
-      emit('thinking', {
-        text:     textBlocks.map(b => b.text).join(''),
-        progress: Math.min(10 + iteration * 7, 85),
-      })
-    }
-
-    // Claude is done — extract and return the final report.
-    // Treat max_tokens as terminal too: there will be no more tool calls, so
-    // salvage whatever JSON the model already produced rather than spinning to
-    // MAX_ITERATIONS and returning no report.
-    if (response.stop_reason === 'end_turn' || response.stop_reason === 'max_tokens') {
-      // Enforce required tools: if Claude tries to finish before every tool a
-      // ticked check needs has actually run, send it back to run the rest.
-      // (Skip on max_tokens — it can't continue — and after MAX_NUDGES.)
-      const missing = required.filter(t => !calledTools.has(t))
-      if (response.stop_reason === 'end_turn' && missing.length && nudges < MAX_NUDGES) {
-        nudges++
-        messages.push({ role: 'assistant', content: response.content })
-        messages.push({
-          role: 'user',
-          content: `You have not yet run these required checks: ${missing.join(', ')}. ` +
-                   `Call each of these tools now using the same URL, then produce the final report. ` +
-                   `Do not write the report until they have all run.`,
-        })
-        emit('status', {
-          message:  `Running required checks: ${missing.join(', ')}`,
+      const textBlocks = response.content.filter((b) => b.type === 'text')
+      if (textBlocks.length) {
+        emit('thinking', {
+          text: textBlocks.map((b) => b.text).join(''),
           progress: Math.min(10 + iteration * 7, 85),
         })
-        continue
       }
 
-      const finalText = textBlocks.map(b => b.text).join('')
-      const report    = extractReport(finalText, { url, module, allToolResults })
-      report.checks = checks                              // what was tested
-      if (environment) report.environment = environment   // live vs dev/staging
-      if (missing.length) report.skippedRequiredTools = missing       // never attempted
-      const failedRequired = required.filter(t => failedTools.has(t))
-      if (failedRequired.length) report.failedRequiredTools = failedRequired // ran but errored
-      if (response.stop_reason === 'max_tokens') {
-        report.truncated = true
-        report.headline  = (report.headline || 'Report generated') + ' (truncated — max_tokens reached)'
-      }
-      report.usage = { ...usage, totalTokens: usage.inputTokens + usage.outputTokens }
-      // (Cumulative usage is rolled up in the loop's `finally` so failed audits
-      // are counted too — see below.)
+      // Claude is done — extract and return the final report.
+      // Treat max_tokens as terminal too: there will be no more tool calls, so
+      // salvage whatever JSON the model already produced rather than spinning to
+      // MAX_ITERATIONS and returning no report.
+      if (response.stop_reason === 'end_turn' || response.stop_reason === 'max_tokens') {
+        // Enforce required tools: if Claude tries to finish before every tool a
+        // ticked check needs has actually run, send it back to run the rest.
+        // (Skip on max_tokens — it can't continue — and after MAX_NUDGES.)
+        const missing = required.filter((t) => !calledTools.has(t))
+        if (response.stop_reason === 'end_turn' && missing.length && nudges < MAX_NUDGES) {
+          nudges++
+          messages.push({ role: 'assistant', content: response.content })
+          messages.push({
+            role: 'user',
+            content:
+              `You have not yet run these required checks: ${missing.join(', ')}. ` +
+              `Call each of these tools now using the same URL, then produce the final report. ` +
+              `Do not write the report until they have all run.`,
+          })
+          emit('status', {
+            message: `Running required checks: ${missing.join(', ')}`,
+            progress: Math.min(10 + iteration * 7, 85),
+          })
+          continue
+        }
 
-      // Visual evidence is attached only when a selected check actually needs it
-      // — i.e. a ticked check uses the screenshot tool, or Claude already
-      // captured a screenshot while gathering data. Non-visual audits (console
-      // errors, web vitals, forms, tracking) get NO auto screenshots, so the
-      // report reflects only the requested checks instead of a generic
-      // full-page-screenshot + boilerplate section scan on every report.
-      const needsVisual =
-        required.includes('playwright_screenshot') ||
-        claudeUsedScreenshot
+        const finalText = textBlocks.map((b) => b.text).join('')
+        const report = extractReport(finalText, { url, module, allToolResults })
+        report.checks = checks // what was tested
+        if (environment) report.environment = environment // live vs dev/staging
+        if (missing.length) report.skippedRequiredTools = missing // never attempted
+        const failedRequired = required.filter((t) => failedTools.has(t))
+        if (failedRequired.length) report.failedRequiredTools = failedRequired // ran but errored
+        if (response.stop_reason === 'max_tokens') {
+          report.truncated = true
+          report.headline =
+            (report.headline || 'Report generated') + ' (truncated — max_tokens reached)'
+        }
+        report.usage = { ...usage, totalTokens: usage.inputTokens + usage.outputTokens }
+        // (Cumulative usage is rolled up in the loop's `finally` so failed audits
+        // are counted too — see below.)
 
-      if (needsVisual) {
+        // Visual evidence is attached only when a selected check actually needs it
+        // — i.e. a ticked check uses the screenshot tool, or Claude already
+        // captured a screenshot while gathering data. Non-visual audits (console
+        // errors, web vitals, forms, tracking) get NO auto screenshots, so the
+        // report reflects only the requested checks instead of a generic
+        // full-page-screenshot + boilerplate section scan on every report.
+        const needsVisual = required.includes('playwright_screenshot') || claudeUsedScreenshot
+
+        if (needsVisual) {
+          try {
+            emit('status', { message: 'Capturing section-by-section screenshots…', progress: 94 })
+            const sec = await auditWebSections(url)
+            // Keep the section screenshot PLUS the measured data (typography,
+            // colors, spacing, layout, element counts) — that measured data is the
+            // real, check-relevant content the report shows per section (e.g. font
+            // family/size/weight for a Typography check). Drop only the generic
+            // accessibility checks/verdict, which aren't tied to the selection.
+            let secList = (sec.sections || []).map((s) => ({
+              index: s.index,
+              name: s.name,
+              tag: s.tag,
+              screenshot: s.screenshot,
+              mimeType: s.mimeType,
+              measured: s.measured,
+              counts: s.counts,
+            }))
+            // Honour the section picker: keep ONLY the sections the user selected
+            // (matched by name). Empty/no selection = keep all.
+            if (selectedSections && selectedSections.length) {
+              const want = new Set(selectedSections)
+              const filtered = secList.filter((s) => want.has(s.name))
+              if (filtered.length) secList = filtered
+            }
+            report.sections = secList
+            report.sectionCount = secList.length
+            if (selectedSections && selectedSections.length)
+              report.selectedSections = selectedSections
+
+            // Section-wise screenshots only — never a full-page hero shot. The
+            // only other images in the report are the targeted evidence shots of
+            // actual faulty elements (captured below).
+            delete report.screenshots
+          } catch (err) {
+            console.warn('[audit] section pass failed:', err.message)
+          }
+        }
+
+        // Evidence screenshots: for every finding that points at a faulty element
+        // — via a CSS selector OR a snippet of its visible text — capture ONE
+        // highlighted shot (red box + arrow). A screenshot is attached wherever
+        // there is a real, locatable mistake.
         try {
-          emit('status', { message: 'Capturing section-by-section screenshots…', progress: 94 })
-          const sec = await auditWebSections(url)
-          // Keep the section screenshot PLUS the measured data (typography,
-          // colors, spacing, layout, element counts) — that measured data is the
-          // real, check-relevant content the report shows per section (e.g. font
-          // family/size/weight for a Typography check). Drop only the generic
-          // accessibility checks/verdict, which aren't tied to the selection.
-          let secList = (sec.sections || []).map(s => ({
-            index: s.index, name: s.name, tag: s.tag,
-            screenshot: s.screenshot, mimeType: s.mimeType,
-            measured: s.measured, counts: s.counts,
-          }))
-          // Honour the section picker: keep ONLY the sections the user selected
-          // (matched by name). Empty/no selection = keep all.
-          if (selectedSections && selectedSections.length) {
-            const want = new Set(selectedSections)
-            const filtered = secList.filter(s => want.has(s.name))
-            if (filtered.length) secList = filtered
+          const targets = []
+          const addTarget = (id, f) => {
+            if (f && (f.selector || f.textMatch)) {
+              targets.push({
+                id,
+                selector: f.selector || null,
+                textMatch: f.textMatch || null,
+                label: f.issue,
+                ref: f,
+              })
+            }
           }
-          report.sections = secList
-          report.sectionCount = secList.length
-          if (selectedSections && selectedSections.length) report.selectedSections = selectedSections
+          for (const [name, m] of Object.entries(report.modules || {})) {
+            ;(m.findings || []).forEach((f, i) => addTarget(`m:${name}:${i}`, f))
+          }
+          ;(report.criticalIssues || []).forEach((c, i) => addTarget(`c:${i}`, c))
 
-          // Section-wise screenshots only — never a full-page hero shot. The
-          // only other images in the report are the targeted evidence shots of
-          // actual faulty elements (captured below).
-          delete report.screenshots
+          if (targets.length) {
+            emit('status', {
+              message: `Capturing evidence screenshots for ${targets.length} issue(s)…`,
+              progress: 96,
+            })
+            const shots = await captureFindingHighlights(
+              url,
+              targets.map(({ id, selector, textMatch, label }) => ({
+                id,
+                selector,
+                textMatch,
+                label,
+              })),
+            )
+            const byId = Object.fromEntries(shots.map((s) => [s.id, s]))
+            let captured = 0
+            for (const t of targets) {
+              const s = byId[t.id]
+              if (s) {
+                t.ref.shot = s.base64
+                t.ref.shotMime = s.mimeType
+                captured++
+                // If Claude didn't supply the faulty code, use the element's real
+                // markup captured from the page as the "current code" evidence.
+                if (s.html && !t.ref.codeProblem) t.ref.codeActual = s.html
+              }
+            }
+            emit('status', {
+              message: `Attached ${captured}/${targets.length} evidence screenshot(s)`,
+              progress: 97,
+            })
+          }
         } catch (err) {
-          console.warn('[audit] section pass failed:', err.message)
+          console.warn('[audit] highlight pass failed:', err.message)
         }
-      }
 
-      // Evidence screenshots: for every finding that points at a faulty element
-      // — via a CSS selector OR a snippet of its visible text — capture ONE
-      // highlighted shot (red box + arrow). A screenshot is attached wherever
-      // there is a real, locatable mistake.
-      try {
-        const targets = []
-        const addTarget = (id, f) => {
-          if (f && (f.selector || f.textMatch)) {
-            targets.push({ id, selector: f.selector || null, textMatch: f.textMatch || null, label: f.issue, ref: f })
+        // Persist to history before emitting so the file exists by the time
+        // the frontend re-fetches the history list.
+        if (reportId) {
+          try {
+            await saveReport(reportId, report)
+          } catch (err) {
+            console.error('[audit] history save failed:', err.message)
           }
         }
-        for (const [name, m] of Object.entries(report.modules || {})) {
-          (m.findings || []).forEach((f, i) => addTarget(`m:${name}:${i}`, f))
-        }
-        ;(report.criticalIssues || []).forEach((c, i) => addTarget(`c:${i}`, c))
+        emit('complete', { report, progress: 100 })
+        return report
+      }
 
-        if (targets.length) {
-          emit('status', { message: `Capturing evidence screenshots for ${targets.length} issue(s)…`, progress: 96 })
-          const shots = await captureFindingHighlights(url, targets.map(({ id, selector, textMatch, label }) => ({ id, selector, textMatch, label })))
-          const byId  = Object.fromEntries(shots.map(s => [s.id, s]))
-          let captured = 0
-          for (const t of targets) {
-            const s = byId[t.id]
-            if (s) {
-              t.ref.shot = s.base64
-              t.ref.shotMime = s.mimeType
-              captured++
-              // If Claude didn't supply the faulty code, use the element's real
-              // markup captured from the page as the "current code" evidence.
-              if (s.html && !t.ref.codeProblem) t.ref.codeActual = s.html
+      const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use')
+      if (!toolUseBlocks.length) break
+
+      messages.push({ role: 'assistant', content: response.content })
+
+      // Execute each requested tool call and collect the results.
+      const toolResults = []
+      for (const toolCall of toolUseBlocks) {
+        emit('tool_call', {
+          tool: toolCall.name,
+          input: toolCall.input,
+          message: `Running: ${toolCall.name}`,
+          progress: Math.min(10 + iteration * 7, 85),
+        })
+
+        try {
+          let result
+          if (toolCall.name === 'figma_fetch') {
+            // Only ever hit Figma once per file per run; replay the first outcome
+            // for any repeat call so a rate limit can't be hammered into a loop.
+            const key = String(toolCall.input?.figmaUrl || figmaUrl || 'figma')
+            const cached = figmaResults.get(key)
+            if (cached) {
+              if (!cached.ok) throw new Error(cached.error) // re-surface, no API hit
+              result = cached.result
+            } else {
+              // Supply the resolved project-wise token unless Claude passed one.
+              const toolInput =
+                figmaToken && !toolCall.input?.token
+                  ? { ...toolCall.input, token: figmaToken }
+                  : toolCall.input
+              try {
+                result = await executeTool(toolCall.name, toolInput)
+                figmaResults.set(key, { ok: true, result })
+              } catch (e) {
+                figmaResults.set(key, { ok: false, error: e.message })
+                throw e
+              }
             }
-          }
-          emit('status', { message: `Attached ${captured}/${targets.length} evidence screenshot(s)`, progress: 97 })
-        }
-      } catch (err) {
-        console.warn('[audit] highlight pass failed:', err.message)
-      }
-
-      // Persist to history before emitting so the file exists by the time
-      // the frontend re-fetches the history list.
-      if (reportId) {
-        try { await saveReport(reportId, report) }
-        catch (err) { console.error('[audit] history save failed:', err.message) }
-      }
-      emit('complete', { report, progress: 100 })
-      return report
-    }
-
-    const toolUseBlocks = response.content.filter(b => b.type === 'tool_use')
-    if (!toolUseBlocks.length) break
-
-    messages.push({ role: 'assistant', content: response.content })
-
-    // Execute each requested tool call and collect the results.
-    const toolResults = []
-    for (const toolCall of toolUseBlocks) {
-      emit('tool_call', {
-        tool:     toolCall.name,
-        input:    toolCall.input,
-        message:  `Running: ${toolCall.name}`,
-        progress: Math.min(10 + iteration * 7, 85),
-      })
-
-      try {
-        let result
-        if (toolCall.name === 'figma_fetch') {
-          // Only ever hit Figma once per file per run; replay the first outcome
-          // for any repeat call so a rate limit can't be hammered into a loop.
-          const key = String(toolCall.input?.figmaUrl || figmaUrl || 'figma')
-          const cached = figmaResults.get(key)
-          if (cached) {
-            if (!cached.ok) throw new Error(cached.error) // re-surface, no API hit
-            result = cached.result
           } else {
-            // Supply the resolved project-wise token unless Claude passed one.
-            const toolInput = (figmaToken && !toolCall.input?.token)
-              ? { ...toolCall.input, token: figmaToken } : toolCall.input
-            try {
-              result = await executeTool(toolCall.name, toolInput)
-              figmaResults.set(key, { ok: true, result })
-            } catch (e) {
-              figmaResults.set(key, { ok: false, error: e.message })
-              throw e
-            }
+            result = await executeTool(toolCall.name, toolCall.input)
           }
-        } else {
-          result = await executeTool(toolCall.name, toolCall.input)
+
+          // Don't push base64 screenshots over the wire — send metadata only.
+          const wireResult =
+            toolCall.name === 'playwright_screenshot'
+              ? { ...result, base64: undefined, hasScreenshot: true }
+              : result
+
+          emit('tool_result', { tool: toolCall.name, result: wireResult })
+          // Store the trimmed result — base64 screenshots must not bloat the
+          // final SSE payload that ships with the `complete` event.
+          allToolResults.push({ tool: toolCall.name, result: wireResult })
+          calledTools.add(toolCall.name) // attempted + succeeded
+          failedTools.delete(toolCall.name) // clear any prior failure (retry worked)
+
+          // Note that Claude looked at the page visually (used only to decide
+          // whether the section pass runs) — the full-page image itself is not
+          // embedded in the report.
+          if (toolCall.name === 'playwright_screenshot' && result.base64) {
+            claudeUsedScreenshot = true
+          }
+
+          // Feed the result back to Claude. A screenshot's base64 must NEVER go
+          // back as text — it's ~hundreds of thousands of tokens and blows the
+          // context window. Send it as a real image block (Claude can see it,
+          // ~1.5k tokens) plus the metadata; everything else goes as JSON text.
+          const content =
+            toolCall.name === 'playwright_screenshot' && result.base64
+              ? [
+                  {
+                    type: 'image',
+                    source: {
+                      type: 'base64',
+                      media_type: result.mimeType || 'image/png',
+                      data: result.base64,
+                    },
+                  },
+                  { type: 'text', text: capText(JSON.stringify(wireResult)) },
+                ]
+              : capText(JSON.stringify(result))
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolCall.id,
+            content,
+          })
+        } catch (err) {
+          emit('tool_error', { tool: toolCall.name, error: err.message })
+          // Count it as attempted so the nudge loop won't keep retrying a tool
+          // that fails for a permanent reason (e.g. a missing API key).
+          calledTools.add(toolCall.name)
+          failedTools.add(toolCall.name)
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolCall.id,
+            content: `Error: ${err.message}`,
+            is_error: true,
+          })
         }
-
-        // Don't push base64 screenshots over the wire — send metadata only.
-        const wireResult = toolCall.name === 'playwright_screenshot'
-          ? { ...result, base64: undefined, hasScreenshot: true }
-          : result
-
-        emit('tool_result', { tool: toolCall.name, result: wireResult })
-        // Store the trimmed result — base64 screenshots must not bloat the
-        // final SSE payload that ships with the `complete` event.
-        allToolResults.push({ tool: toolCall.name, result: wireResult })
-        calledTools.add(toolCall.name)   // attempted + succeeded
-        failedTools.delete(toolCall.name) // clear any prior failure (retry worked)
-
-        // Note that Claude looked at the page visually (used only to decide
-        // whether the section pass runs) — the full-page image itself is not
-        // embedded in the report.
-        if (toolCall.name === 'playwright_screenshot' && result.base64) {
-          claudeUsedScreenshot = true
-        }
-
-        // Feed the result back to Claude. A screenshot's base64 must NEVER go
-        // back as text — it's ~hundreds of thousands of tokens and blows the
-        // context window. Send it as a real image block (Claude can see it,
-        // ~1.5k tokens) plus the metadata; everything else goes as JSON text.
-        const content = (toolCall.name === 'playwright_screenshot' && result.base64)
-          ? [
-              { type: 'image', source: { type: 'base64', media_type: result.mimeType || 'image/png', data: result.base64 } },
-              { type: 'text',  text: capText(JSON.stringify(wireResult)) },
-            ]
-          : capText(JSON.stringify(result))
-
-        toolResults.push({
-          type:        'tool_result',
-          tool_use_id: toolCall.id,
-          content,
-        })
-      } catch (err) {
-        emit('tool_error', { tool: toolCall.name, error: err.message })
-        // Count it as attempted so the nudge loop won't keep retrying a tool
-        // that fails for a permanent reason (e.g. a missing API key).
-        calledTools.add(toolCall.name)
-        failedTools.add(toolCall.name)
-        toolResults.push({
-          type:        'tool_result',
-          tool_use_id: toolCall.id,
-          content:     `Error: ${err.message}`,
-          is_error:    true,
-        })
       }
+
+      // Feed the tool results back to Claude for the next turn.
+      messages.push({ role: 'user', content: toolResults })
     }
 
-    // Feed the tool results back to Claude for the next turn.
-    messages.push({ role: 'user', content: toolResults })
-  }
-
-  emit('error', { message: 'Max iterations reached without final report' })
-  return null
+    emit('error', { message: 'Max iterations reached without final report' })
+    return null
   } finally {
     // Record token spend on any exit — including failed/aborted audits — so the
     // Admin token total reflects real usage. Only when at least one call ran.

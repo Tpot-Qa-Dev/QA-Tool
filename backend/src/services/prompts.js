@@ -51,14 +51,16 @@ function buildEnvBlock(environment) {
   if (environment.isProduction) {
     return `\nSite environment: LIVE PRODUCTION (no development/staging signals detected). Audit it as a public, live website and hold it to production standards.\n`
   }
-  const sigs = (environment.signals || []).map(s => `  • ${s.detail}`).join('\n')
+  const sigs = (environment.signals || []).map((s) => `  • ${s.detail}`).join('\n')
   const env = String(environment.environment || 'staging').toUpperCase()
-  return `\nSite environment: ${env} — this is NOT a finished live website. Detected signals:\n${sigs}\n` +
+  return (
+    `\nSite environment: ${env} — this is NOT a finished live website. Detected signals:\n${sigs}\n` +
     `Frame the report as a pre-launch / ${env.toLowerCase()} review:\n` +
     `- State clearly in the headline that this is a ${env.toLowerCase()} (not live) site.\n` +
     `- Do NOT mark it down as if it were live for things that are normal before launch (noindex/search blocking, missing analytics or tracking, placeholder copy/images, "coming soon"). List those as "before going live" items in nextSteps instead of failures.\n` +
     `- IGNORE transport security on a pre-launch site: do NOT report HTTP-instead-of-HTTPS, mixed-content (http:// assets on the page), "insecure resource", or SSL/TLS certificate warnings as findings or criticalIssues, and do NOT lower the score for them — staging/dev sites commonly run on HTTP and this is fixed when the site goes live behind HTTPS. At most add a single "serve over HTTPS before launch" note to nextSteps.\n` +
     `- Keep the score focused on REAL defects that are wrong regardless of launch status: broken functionality, JS/console errors, broken links, accessibility problems, and genuine security flaws (exposed secrets, injection) — but NOT HTTP/TLS/mixed-content.\n`
+  )
 }
 
 // The EDITABLE part of the system prompt — the agent's persona and how it
@@ -90,22 +92,34 @@ How a senior engineer works (follow this):
 // `instructions` is the editable persona/instructions block (defaults to the
 // built-in DEFAULT_INSTRUCTIONS); the run context + REPORT_SHAPE below are
 // always appended by code and cannot be edited away.
-export function buildSystemPrompt(module, checks, requiredTools = [], extraInstructions = '', environment = null, instructions = '') {
-  const persona = (instructions && instructions.trim()) ? instructions.trim() : DEFAULT_INSTRUCTIONS
+export function buildSystemPrompt(
+  module,
+  checks,
+  requiredTools = [],
+  extraInstructions = '',
+  environment = null,
+  instructions = '',
+) {
+  const persona = instructions && instructions.trim() ? instructions.trim() : DEFAULT_INSTRUCTIONS
 
   const requiredBlock = requiredTools.length
-    ? `\nRequired tools — you MUST call EACH of these at least once before writing the report (each maps to a requested check):\n${requiredTools.map(t => `- ${t}`).join('\n')}\n`
+    ? `\nRequired tools — you MUST call EACH of these at least once before writing the report (each maps to a requested check):\n${requiredTools.map((t) => `- ${t}`).join('\n')}\n`
     : ''
 
-  const extraBlock = extraInstructions && extraInstructions.trim()
-    ? `\nAdditional instructions from the operator (follow these too):\n${extraInstructions.trim()}\n`
-    : ''
+  const extraBlock =
+    extraInstructions && extraInstructions.trim()
+      ? `\nAdditional instructions from the operator (follow these too):\n${extraInstructions.trim()}\n`
+      : ''
 
   const envBlock = buildEnvBlock(environment)
 
   const dynamicRules =
-    (checks.length ? '- ONLY test the checks listed above. Ignore everything else. Do not report on unchecked categories.\n' : '') +
-    (requiredTools.length ? '- You MUST call every tool in the "Required tools" list above before producing the report. Do not finalize until each has run.\n' : '')
+    (checks.length
+      ? '- ONLY test the checks listed above. Ignore everything else. Do not report on unchecked categories.\n'
+      : '') +
+    (requiredTools.length
+      ? '- You MUST call every tool in the "Required tools" list above before producing the report. Do not finalize until each has run.\n'
+      : '')
 
   const base = `${persona}
 
@@ -117,7 +131,10 @@ ${REPORT_SHAPE}`
 
   // Any module whose id mentions "figma" gets the design-comparison addendum.
   if (module && module.includes('figma')) {
-    return base + '\n\nFor Figma comparison: fetch both the Figma design and audit the web page metadata, then compare design tokens, colors, and typography.'
+    return (
+      base +
+      '\n\nFor Figma comparison: fetch both the Figma design and audit the web page metadata, then compare design tokens, colors, and typography.'
+    )
   }
   return base
 }

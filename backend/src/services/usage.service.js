@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url'
 import { dirname, resolve, join } from 'path'
 
 const backendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const USAGE_FILE  = join(backendRoot, 'usage.json')
+const USAGE_FILE = join(backendRoot, 'usage.json')
 
 const EMPTY = { inputTokens: 0, outputTokens: 0, audits: 0, since: null }
 
@@ -17,11 +17,11 @@ export async function getUsage() {
   try {
     const parsed = JSON.parse(await fs.readFile(USAGE_FILE, 'utf8'))
     return {
-      inputTokens:  Number(parsed.inputTokens)  || 0,
+      inputTokens: Number(parsed.inputTokens) || 0,
       outputTokens: Number(parsed.outputTokens) || 0,
       totalTokens: (Number(parsed.inputTokens) || 0) + (Number(parsed.outputTokens) || 0),
-      audits:       Number(parsed.audits)       || 0,
-      since:        parsed.since || null,
+      audits: Number(parsed.audits) || 0,
+      since: parsed.since || null,
     }
   } catch {
     return { ...EMPTY, totalTokens: 0 }
@@ -33,10 +33,10 @@ export async function addUsage({ inputTokens = 0, outputTokens = 0 }) {
   try {
     const cur = await getUsage()
     const next = {
-      inputTokens:  cur.inputTokens  + (Number(inputTokens)  || 0),
+      inputTokens: cur.inputTokens + (Number(inputTokens) || 0),
       outputTokens: cur.outputTokens + (Number(outputTokens) || 0),
-      audits:       cur.audits + 1,
-      since:        cur.since || new Date().toISOString(),
+      audits: cur.audits + 1,
+      since: cur.since || new Date().toISOString(),
     }
     await fs.writeFile(USAGE_FILE, JSON.stringify(next, null, 2), 'utf8')
     return next

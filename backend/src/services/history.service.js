@@ -15,7 +15,7 @@ import { dirname, resolve, join } from 'path'
 
 const backendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const REPORTS_DIR = join(backendRoot, 'reports')
-const INDEX_FILE  = join(REPORTS_DIR, '_index.json')
+const INDEX_FILE = join(REPORTS_DIR, '_index.json')
 
 // Reject anything that isn't a safe report-id (alnum + dash, no path chars).
 const SAFE_ID = /^[A-Za-z0-9_-]+$/
@@ -28,7 +28,7 @@ async function ensureDir() {
 }
 
 // Is `f` a stored report file (not the index, not a dotfile)?
-const isReportFile = f => f.endsWith('.json') && !f.startsWith('_')
+const isReportFile = (f) => f.endsWith('.json') && !f.startsWith('_')
 
 // ── Index ─────────────────────────────────────────────────────────────────────
 // The index is persisted as { id: metadata } so upsert/delete are trivial.
@@ -42,14 +42,18 @@ async function writeIndex(map) {
 async function rebuildIndex() {
   await ensureDir()
   const files = (await fs.readdir(REPORTS_DIR)).filter(isReportFile)
-  const map   = {}
-  await Promise.all(files.map(async f => {
-    try {
-      const raw  = await fs.readFile(join(REPORTS_DIR, f), 'utf8')
-      const meta = toMetadata(JSON.parse(raw))
-      if (meta.id) map[meta.id] = meta
-    } catch { /* skip unreadable / malformed file */ }
-  }))
+  const map = {}
+  await Promise.all(
+    files.map(async (f) => {
+      try {
+        const raw = await fs.readFile(join(REPORTS_DIR, f), 'utf8')
+        const meta = toMetadata(JSON.parse(raw))
+        if (meta.id) map[meta.id] = meta
+      } catch {
+        /* skip unreadable / malformed file */
+      }
+    }),
+  )
   await writeIndex(map)
   return map
 }
@@ -58,7 +62,7 @@ async function rebuildIndex() {
 async function readIndex() {
   await ensureDir()
   try {
-    const raw    = await fs.readFile(INDEX_FILE, 'utf8')
+    const raw = await fs.readFile(INDEX_FILE, 'utf8')
     const parsed = JSON.parse(raw)
     if (parsed && typeof parsed === 'object') return parsed
     return rebuildIndex()
@@ -101,24 +105,25 @@ export async function saveReport(id, report) {
 // count before paging.
 export async function listReports({ q, module, limit, offset } = {}) {
   const idx = await readIndex()
-  let rows  = Object.values(idx)
+  let rows = Object.values(idx)
 
-  if (module) rows = rows.filter(r => r.module === module)
+  if (module) rows = rows.filter((r) => r.module === module)
 
   if (q) {
     const needle = String(q).trim().toLowerCase()
     if (needle) {
-      rows = rows.filter(r =>
-        `${r.url || ''} ${r.headline || ''} ${r.id || ''}`.toLowerCase().includes(needle))
+      rows = rows.filter((r) =>
+        `${r.url || ''} ${r.headline || ''} ${r.id || ''}`.toLowerCase().includes(needle),
+      )
     }
   }
 
   rows.sort((a, b) => (b.generatedAt || '').localeCompare(a.generatedAt || ''))
 
   const total = rows.length
-  const off   = Number.isFinite(+offset) && +offset > 0 ? Math.floor(+offset) : 0
-  const lim   = Number.isFinite(+limit) && +limit > 0 ? Math.min(Math.floor(+limit), 200) : 25
-  const page  = rows.slice(off, off + lim)
+  const off = Number.isFinite(+offset) && +offset > 0 ? Math.floor(+offset) : 0
+  const lim = Number.isFinite(+limit) && +limit > 0 ? Math.min(Math.floor(+limit), 200) : 25
+  const page = rows.slice(off, off + lim)
 
   return { reports: page, total, limit: lim, offset: off }
 }
@@ -147,7 +152,10 @@ export async function deleteReport(id) {
   }
   try {
     const idx = await readIndex()
-    if (idx[id]) { delete idx[id]; await writeIndex(idx) }
+    if (idx[id]) {
+      delete idx[id]
+      await writeIndex(idx)
+    }
   } catch (err) {
     console.warn('[history] index delete failed (will self-heal):', err.message)
   }
@@ -158,8 +166,7 @@ export async function deleteReport(id) {
 // admin dashboard to compute aggregate stats.
 export async function getAllMetadata() {
   const idx = await readIndex()
-  return Object.values(idx)
-    .sort((a, b) => (b.generatedAt || '').localeCompare(a.generatedAt || ''))
+  return Object.values(idx).sort((a, b) => (b.generatedAt || '').localeCompare(a.generatedAt || ''))
 }
 
 // ── Maintenance ───────────────────────────────────────────────────────────────
@@ -167,16 +174,20 @@ export async function getAllMetadata() {
 // Count of stored reports + total bytes on disk (reports + index).
 export async function getStats() {
   await ensureDir()
-  const files = (await fs.readdir(REPORTS_DIR)).filter(f => f.endsWith('.json'))
+  const files = (await fs.readdir(REPORTS_DIR)).filter((f) => f.endsWith('.json'))
   let totalBytes = 0
   let count = 0
-  await Promise.all(files.map(async f => {
-    try {
-      const st = await fs.stat(join(REPORTS_DIR, f))
-      totalBytes += st.size
-      if (isReportFile(f)) count++
-    } catch { /* ignore */ }
-  }))
+  await Promise.all(
+    files.map(async (f) => {
+      try {
+        const st = await fs.stat(join(REPORTS_DIR, f))
+        totalBytes += st.size
+        if (isReportFile(f)) count++
+      } catch {
+        /* ignore */
+      }
+    }),
+  )
   return { count, totalBytes }
 }
 
@@ -190,7 +201,7 @@ export async function rebuildIndexNow() {
 export async function clearAll() {
   await ensureDir()
   const files = (await fs.readdir(REPORTS_DIR)).filter(isReportFile)
-  await Promise.all(files.map(f => fs.unlink(join(REPORTS_DIR, f)).catch(() => {})))
+  await Promise.all(files.map((f) => fs.unlink(join(REPORTS_DIR, f)).catch(() => {})))
   await writeIndex({})
   return { removed: files.length }
 }
@@ -200,8 +211,8 @@ export async function purgeOlderThan(days) {
   const n = Number(days)
   if (!Number.isFinite(n) || n < 0) throw new Error('days must be a non-negative number')
   const cutoff = Date.now() - n * 86_400_000
-  const idx    = await readIndex()
-  const stale  = Object.values(idx).filter(r => {
+  const idx = await readIndex()
+  const stale = Object.values(idx).filter((r) => {
     const t = Date.parse(r.generatedAt || '')
     return Number.isFinite(t) && t < cutoff
   })
@@ -216,21 +227,24 @@ export async function purgeOlderThan(days) {
 // Reduce a full report to the fields shown in the history list.
 function toMetadata(report) {
   const m = report?.modules || {}
-  const counts = Object.values(m).reduce((acc, v) => {
-    const s = v?.status
-    if (s === 'pass') acc.pass++
-    else if (s === 'warn') acc.warn++
-    else if (s === 'fail') acc.fail++
-    return acc
-  }, { pass: 0, warn: 0, fail: 0 })
+  const counts = Object.values(m).reduce(
+    (acc, v) => {
+      const s = v?.status
+      if (s === 'pass') acc.pass++
+      else if (s === 'warn') acc.warn++
+      else if (s === 'fail') acc.fail++
+      return acc
+    },
+    { pass: 0, warn: 0, fail: 0 },
+  )
 
   return {
-    id:          report.id,
-    url:         report.url || '',
-    module:      report.module || '',
-    score:       typeof report.overallScore === 'number' ? report.overallScore : null,
-    grade:       report.grade || null,
-    headline:    report.headline || '',
+    id: report.id,
+    url: report.url || '',
+    module: report.module || '',
+    score: typeof report.overallScore === 'number' ? report.overallScore : null,
+    grade: report.grade || null,
+    headline: report.headline || '',
     generatedAt: report.generatedAt || null,
     counts,
   }

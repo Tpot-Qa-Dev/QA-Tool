@@ -11,7 +11,7 @@
 //     error responses (no internals leaked).
 // ─────────────────────────────────────────────────────────────────────────────
 import express from 'express'
-import cors    from 'cors'
+import cors from 'cors'
 import { config } from './config/index.js'
 import routes from './routes/index.js'
 
@@ -21,7 +21,11 @@ function corsOptions() {
   if (config.isProd) return { origin: config.frontendUrl }
   return {
     origin(origin, cb) {
-      if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin === config.frontendUrl) {
+      if (
+        !origin ||
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+        origin === config.frontendUrl
+      ) {
         return cb(null, true)
       }
       return cb(null, true) // dev: reflect any origin
@@ -40,7 +44,9 @@ export function createApp() {
     app.use((req, res, next) => {
       const t0 = Date.now()
       res.on('finish', () => {
-        console.log(`  [${req.method}] ${req.originalUrl} → ${res.statusCode} (${Date.now() - t0}ms)`)
+        console.log(
+          `  [${req.method}] ${req.originalUrl} → ${res.statusCode} (${Date.now() - t0}ms)`,
+        )
       })
       next()
     })

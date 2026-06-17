@@ -2,7 +2,12 @@
 //  controllers/settings.controller.js
 //  HTTP layer for /api/settings — read and update runtime tool settings.
 // ─────────────────────────────────────────────────────────────────────────────
-import { getSettings, saveSettings, getToolCatalogue, MODEL_PRESETS } from '../services/settings.service.js'
+import {
+  getSettings,
+  saveSettings,
+  getToolCatalogue,
+  MODEL_PRESETS,
+} from '../services/settings.service.js'
 import { getUsage, resetUsage } from '../services/usage.service.js'
 
 export async function getSettingsHandler(_req, res) {
@@ -18,7 +23,7 @@ export async function getSettingsHandler(_req, res) {
 export async function updateSettingsHandler(req, res) {
   try {
     const settings = await saveSettings(req.body || {})
-    const tools    = await getToolCatalogue()
+    const tools = await getToolCatalogue()
     res.json({ settings, tools, modelPresets: MODEL_PRESETS })
   } catch (err) {
     console.error('[settings] update error:', err)

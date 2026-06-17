@@ -14,16 +14,16 @@ import { dirname, resolve, join } from 'path'
 import { config } from '../config/index.js'
 
 const backendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const ENV_FILE    = join(backendRoot, '.env')
+const ENV_FILE = join(backendRoot, '.env')
 
 // Patch field → .env variable name.
 const FIELD_TO_ENV = {
-  claudeKey:   'CLAUDE_API_KEY',
-  psiKey:      'PSI_API_KEY',
-  figmaToken:  'FIGMA_TOKEN',
-  nodeEnv:     'NODE_ENV',
+  claudeKey: 'CLAUDE_API_KEY',
+  psiKey: 'PSI_API_KEY',
+  figmaToken: 'FIGMA_TOKEN',
+  nodeEnv: 'NODE_ENV',
   frontendUrl: 'FRONTEND_URL',
-  headless:    'HEADLESS',
+  headless: 'HEADLESS',
 }
 const SECRET_FIELDS = ['claudeKey', 'psiKey', 'figmaToken']
 
@@ -33,13 +33,13 @@ export function getEnvStatus() {
   return {
     keys: {
       claude: !!config.keys.claude,
-      psi:    !!config.keys.psi,
-      figma:  !!config.keys.figma,
+      psi: !!config.keys.psi,
+      figma: !!config.keys.figma,
     },
-    nodeEnv:     config.env,
+    nodeEnv: config.env,
     frontendUrl: config.frontendUrl,
-    port:        config.port,
-    headless:    config.playwright.headless,
+    port: config.port,
+    headless: config.playwright.headless,
   }
 }
 
@@ -56,7 +56,11 @@ function setLine(text, key, value) {
 // vars were updated.
 export async function updateEnvConfig(patch = {}) {
   let text = ''
-  try { text = await fs.readFile(ENV_FILE, 'utf8') } catch { text = '' }
+  try {
+    text = await fs.readFile(ENV_FILE, 'utf8')
+  } catch {
+    text = ''
+  }
 
   const updated = []
   for (const [field, envName] of Object.entries(FIELD_TO_ENV)) {
@@ -69,7 +73,7 @@ export async function updateEnvConfig(patch = {}) {
     } else if (field === 'nodeEnv') {
       val = val === 'production' ? 'production' : 'development'
     } else if (field === 'headless') {
-      val = (val === true || val === 'true') ? 'true' : 'false'
+      val = val === true || val === 'true' ? 'true' : 'false'
     } else if (field === 'frontendUrl') {
       if (typeof val !== 'string' || !val.trim()) continue
       val = val.trim()

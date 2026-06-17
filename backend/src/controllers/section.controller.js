@@ -42,8 +42,11 @@ export async function postSectionList(req, res) {
     const result = await auditWebSections(url, { withShots: false })
     res.json({
       url,
-      sections: (result.sections || []).map(s => ({
-        index: s.index, name: s.name, tag: s.tag, counts: s.counts,
+      sections: (result.sections || []).map((s) => ({
+        index: s.index,
+        name: s.name,
+        tag: s.tag,
+        counts: s.counts,
       })),
     })
   } catch (err) {
