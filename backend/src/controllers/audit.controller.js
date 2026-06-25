@@ -3,9 +3,9 @@
 //  HTTP layer for POST /api/audit — validates the request, opens an SSE
 //  stream, and delegates the actual work to the audit service.
 // ─────────────────────────────────────────────────────────────────────────────
-import { config } from '../config/index.js'
 import { initSSE, sendSSE } from '../utils/sse.js'
 import { runAudit } from '../services/audit.service.js'
+import { hasAiKey } from '../utils/aiKeys.js'
 
 // True when value is a well-formed http/https link. When `allowFile` is set
 // (a declared Local link), a file:// path to a local HTML file is also valid.
@@ -57,8 +57,11 @@ export async function postAudit(req, res) {
     }
   }
 
-  if (!config.keys.claude) {
-    return res.status(500).json({ error: 'CLAUDE_API_KEY not set in .env' })
+  if (!(await hasAiKey())) {
+    return res.status(500).json({
+      error:
+        'No AI API key configured. Set OPENROUTER_API_KEY in backend/.env or add a model in Admin → AI Models.',
+    })
   }
 
   // Stream progress back to the client over Server-Sent Events.

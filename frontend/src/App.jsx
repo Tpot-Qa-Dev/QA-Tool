@@ -278,7 +278,7 @@ export default function App() {
     !sameUrls &&
     Object.values(checkState).some(Boolean) &&
     !!health?.ok &&
-    !!health?.keys?.claude
+    !!health?.keys?.ai
 
   const handleRun = async () => {
     if (!canRun) return

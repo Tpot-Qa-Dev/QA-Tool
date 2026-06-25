@@ -19,14 +19,19 @@ const backendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const SETTINGS_FILE = join(backendRoot, 'settings.json')
 
 // Models the UI offers. Free-form values are still accepted (any non-empty
-// string), but these are the vetted presets.
-export const MODEL_PRESETS = ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5-20251001']
+// string), but these are the vetted presets (OpenRouter provider-prefixed slugs).
+export const MODEL_PRESETS = [
+  'anthropic/claude-3.5-sonnet',
+  'openai/gpt-4o-mini',
+  'google/gemini-2.0-flash-001',
+  'deepseek/deepseek-chat',
+]
 
 const ALL_TOOL_NAMES = TOOL_DEFINITIONS.map((t) => t.name)
 
 const DEFAULTS = {
   audit: {
-    model: 'claude-sonnet-4-6',
+    model: 'anthropic/claude-3.5-sonnet',
     maxIterations: 12,
     maxTokens: 8192,
     headless: config.playwright.headless,

@@ -24,10 +24,10 @@ import { getActiveProfile, getSelectableProfile } from './aiModels.service.js'
 import { makeGeminiClient } from '../tools/geminiAdapter.js'
 import { makeOpenRouterClient } from '../tools/openrouterAdapter.js'
 
-const anthropic = new Anthropic({ apiKey: config.keys.claude })
+const anthropic = config.keys.claude ? new Anthropic({ apiKey: config.keys.claude }) : null
 
 // Fallback audit parameters — overridden per run by persisted settings.
-const MODEL = 'claude-sonnet-4-6'
+const MODEL = config.ai.defaultOpenRouterModel
 const MAX_TOKENS = 8192
 const MAX_ITERATIONS = 12
 // How many times we'll send Claude back to run still-missing required tools
@@ -150,7 +150,7 @@ export async function runAudit(
     ownerId = null,
   },
   emit,
-  client = anthropic,
+  injectedClient,
 ) {
   emit('status', { message: 'Audit started', progress: 2 })
 
@@ -165,11 +165,10 @@ export async function runAudit(
   const activeTools = TOOL_DEFINITIONS.filter((t) => isEnabled(t.name))
 
   // Active AI model profile (Admin → AI Models): overrides the model and uses
-  // its OWN API key + provider. Claude runs natively; Gemini runs via an adapter
-  // that mimics the Anthropic client. Other providers are gated until wired.
-  // Only override the injected client when it's the shared default (tests pass
-  // their own client and must keep it).
-  let activeClient = client
+  // its OWN API key + provider. OpenRouter/Gemini run via adapters that mimic
+  // the Anthropic client. Only override the injected client when tests pass one.
+  const usingInjected = injectedClient != null
+  let activeClient = injectedClient ?? null
   try {
     // The user's per-audit pick wins (if the admin permitted it); otherwise the
     // admin's active default model is used.
@@ -177,7 +176,7 @@ export async function runAudit(
     if (profile) {
       if (!profile.runnable) {
         emit('error', {
-          message: `Active AI model "${profile.label}" uses provider "${profile.provider}", which can't run audits yet. Pick a Claude or Gemini model in Admin → AI Models.`,
+          message: `Active AI model "${profile.label}" uses provider "${profile.provider}", which can't run audits yet. Pick a runnable model in Admin → AI Models.`,
         })
         return null
       }
@@ -201,8 +200,9 @@ export async function runAudit(
         activeClient = makeOpenRouterClient(profile.apiKey)
       } else {
         // anthropic
-        if (client === anthropic && profile.apiKey)
+        if (!usingInjected && profile.apiKey)
           activeClient = new Anthropic({ apiKey: profile.apiKey })
+        else if (!usingInjected && anthropic) activeClient = anthropic
       }
       emit('status', {
         message: `Using AI model: ${profile.label} (${profile.model})`,
@@ -211,6 +211,28 @@ export async function runAudit(
     }
   } catch (err) {
     console.warn('[audit] ai-model resolve failed:', err.message)
+  }
+
+  // No Admin profile (or tests didn't inject a client): fall back to .env keys.
+  // OpenRouter is preferred when OPENROUTER_API_KEY is set.
+  if (!usingInjected && !activeClient) {
+    if (config.keys.openrouter) {
+      activeClient = makeOpenRouterClient(config.keys.openrouter)
+      if (!model.includes('/')) model = config.ai.defaultOpenRouterModel
+      emit('status', {
+        message: `Using OpenRouter (${model})`,
+        progress: 3,
+      })
+    } else if (anthropic) {
+      activeClient = anthropic
+      emit('status', { message: `Using Claude (${model})`, progress: 3 })
+    } else {
+      emit('error', {
+        message:
+          'No AI API key configured. Set OPENROUTER_API_KEY in backend/.env or add a model in Admin → AI Models.',
+      })
+      return null
+    }
   }
 
   // Detect whether this is a live production site or still in dev/staging so
@@ -333,7 +355,7 @@ export async function runAudit(
   // replay it instead of hammering Figma into a 429 loop.
   const figmaResults = new Map()
 
-  emit('status', { message: 'Connecting to Claude AI…', progress: 8 })
+  emit('status', { message: 'Connecting to AI…', progress: 8 })
 
   // ── Agentic loop: Claude calls tools until it has enough data ───────────────
   // Wrapped in try/finally so the cumulative token counter is updated on EVERY

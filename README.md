@@ -56,7 +56,8 @@ frontend/  ← React + Vite (port 5173) — no API keys, calls backend only
 
 | API | Key Format | Required | Get It |
 |-----|-----------|----------|--------|
-| **Claude API** | `sk-ant-api03-...` | ✅ YES | https://console.anthropic.com → API Keys |
+| **OpenRouter API** | `sk-or-v1-...` | ✅ YES | https://openrouter.ai/keys |
+| **Claude API** | `sk-ant-api03-...` | ○ optional fallback | https://console.anthropic.com → API Keys |
 | **Google PageSpeed** | `AIza...` | ○ optional | https://developers.google.com/speed/docs/insights/v5/get-started |
 | **Figma Token** | `figd_...` | ○ optional (Figma module only) | Figma → Settings → Access Tokens |
 | **Playwright** | — | ✅ YES (npm package) | `npm install` then `npx playwright install chromium` |
@@ -83,7 +84,7 @@ cd backend
 npm install
 npm run install-browsers     # npx playwright install chromium --with-deps
 cp .env.example .env
-# Add CLAUDE_API_KEY to .env
+# Add OPENROUTER_API_KEY to .env
 npm start                    # node src/server.js
 
 # Terminal 2 — Frontend

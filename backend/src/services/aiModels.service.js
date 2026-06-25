@@ -5,7 +5,7 @@
 //  Persisted to backend/ai-models.json as { profiles: [{id,label,provider,
 //  model,apiKey,createdAt}], activeId }. Raw keys never leave the backend; the
 //  public list masks them. When no profile is active, audits fall back to the
-//  model in Settings + the CLAUDE_API_KEY from .env (provider 'anthropic').
+//  caller falls back to Settings model + OPENROUTER_API_KEY (or CLAUDE_API_KEY) from .env.
 //
 //  Execution support: 'anthropic' runs today. Other providers can be SAVED and
 //  selected, but running an audit against them is gated until their adapter

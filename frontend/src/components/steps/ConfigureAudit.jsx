@@ -100,7 +100,7 @@ export default function ConfigureAudit({
   const allSelected = checkboxItems.length > 0 && checkboxItems.every((i) => checkState[i.id])
 
   const backendDown = !health?.ok
-  const noKey = health?.ok && !health?.keys?.claude
+  const noKey = health?.ok && !health?.keys?.ai
 
   return (
     <div className="fade-in">
@@ -134,7 +134,8 @@ export default function ConfigureAudit({
       )}
       {noKey && (
         <div className="warn-box">
-          ✗ CLAUDE_API_KEY missing — add it to <code>backend/.env</code>
+          ✗ AI API key missing — add <code>OPENROUTER_API_KEY</code> to <code>backend/.env</code>{' '}
+          or configure a model in Admin → AI Models
         </div>
       )}
 

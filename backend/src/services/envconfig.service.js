@@ -18,6 +18,8 @@ const ENV_FILE = join(backendRoot, '.env')
 
 // Patch field → .env variable name.
 const FIELD_TO_ENV = {
+  openrouterKey: 'OPENROUTER_API_KEY',
+  openrouterModel: 'OPENROUTER_MODEL',
   claudeKey: 'CLAUDE_API_KEY',
   psiKey: 'PSI_API_KEY',
   figmaToken: 'FIGMA_TOKEN',
@@ -25,13 +27,14 @@ const FIELD_TO_ENV = {
   frontendUrl: 'FRONTEND_URL',
   headless: 'HEADLESS',
 }
-const SECRET_FIELDS = ['claudeKey', 'psiKey', 'figmaToken']
+const SECRET_FIELDS = ['openrouterKey', 'claudeKey', 'psiKey', 'figmaToken']
 
 // Current ACTIVE config (what the running server loaded). Secrets are shown
 // only as presence booleans.
 export function getEnvStatus() {
   return {
     keys: {
+      openrouter: !!config.keys.openrouter,
       claude: !!config.keys.claude,
       psi: !!config.keys.psi,
       figma: !!config.keys.figma,

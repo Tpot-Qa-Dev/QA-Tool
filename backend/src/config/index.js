@@ -23,8 +23,13 @@ export const config = {
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   keys: {
     claude: process.env.CLAUDE_API_KEY || '',
+    openrouter: process.env.OPENROUTER_API_KEY || '',
     psi: process.env.PSI_API_KEY || '',
     figma: process.env.FIGMA_TOKEN || '',
+  },
+  ai: {
+    // Default OpenRouter model slug when OPENROUTER_API_KEY is set and no Admin profile overrides.
+    defaultOpenRouterModel: process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
   },
   // Authentication / RBAC. JWT_SECRET signs login tokens; the ADMIN_* pair seeds
   // the first admin account (see db/seed.js). Set all three in backend/.env.
@@ -44,4 +49,9 @@ export const config = {
     navTimeoutMs: 30_000,
     maxLinks: 80,
   },
+}
+
+/** True when at least one AI key is present in .env (OpenRouter or Claude). */
+export function hasEnvAiKey() {
+  return !!(config.keys.openrouter || config.keys.claude)
 }

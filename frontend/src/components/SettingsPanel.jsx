@@ -212,7 +212,9 @@ export default function SettingsPanel({ open, onClose, health }) {
 
   const keys = health?.keys || {}
   const KEY_ROWS = [
-    { id: 'claude', label: 'Claude API key', required: true },
+    { id: 'ai', label: 'AI API key', required: true },
+    { id: 'openrouter', label: 'OpenRouter key (.env)', required: false },
+    { id: 'claude', label: 'Claude key (.env fallback)', required: false },
     { id: 'psi', label: 'PageSpeed API key', required: false },
     { id: 'figma', label: 'Figma token', required: false },
   ]

@@ -87,6 +87,7 @@ export default function AdminPanel({ open, onClose, currentUser }) {
   const [cfgNotice, setCfgNotice] = useState(null)
   // Config form fields (secrets blank = leave unchanged).
   const [form, setForm] = useState({
+    openrouterKey: '',
     claudeKey: '',
     psiKey: '',
     figmaToken: '',
@@ -127,8 +128,8 @@ export default function AdminPanel({ open, onClose, currentUser }) {
   const [aiCfg, setAiCfg] = useState(null) // { profiles, activeId, providers }
   const [aiForm, setAiForm] = useState({
     label: '',
-    provider: 'anthropic',
-    model: 'claude-sonnet-4-6',
+    provider: 'openrouter',
+    model: 'anthropic/claude-3.5-sonnet',
     apiKey: '',
     allowedForUsers: false,
   })
@@ -250,8 +251,8 @@ export default function AdminPanel({ open, onClose, currentUser }) {
     setAiEditId(null)
     setAiForm({
       label: '',
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-6',
+      provider: 'openrouter',
+      model: 'anthropic/claude-3.5-sonnet',
       apiKey: '',
       allowedForUsers: false,
     })
@@ -471,12 +472,13 @@ export default function AdminPanel({ open, onClose, currentUser }) {
     setCfgNotice(null)
     try {
       const patch = { nodeEnv: form.nodeEnv, frontendUrl: form.frontendUrl }
+      if (form.openrouterKey.trim()) patch.openrouterKey = form.openrouterKey.trim()
       if (form.claudeKey.trim()) patch.claudeKey = form.claudeKey.trim()
       if (form.psiKey.trim()) patch.psiKey = form.psiKey.trim()
       if (form.figmaToken.trim()) patch.figmaToken = form.figmaToken.trim()
       const res = await updateAdminConfig(patch)
       setCfg(res.status)
-      setForm((f) => ({ ...f, claudeKey: '', psiKey: '', figmaToken: '' })) // clear secrets
+      setForm((f) => ({ ...f, openrouterKey: '', claudeKey: '', psiKey: '', figmaToken: '' })) // clear secrets
       setCfgNotice(
         `Saved (${res.updated.join(', ') || 'no changes'}). Restart the backend to apply.`,
       )
@@ -910,11 +912,28 @@ export default function AdminPanel({ open, onClose, currentUser }) {
                 <div className="admin-cfg-grid">
                   <label className="settings-field">
                     <span>
+                      OpenRouter API key{' '}
+                      {cfg.keys.openrouter ? (
+                        <span className="tag-on">set</span>
+                      ) : (
+                        <span className="tag-off">missing</span>
+                      )}
+                    </span>
+                    <input
+                      className="history-search"
+                      type="password"
+                      placeholder="sk-or-… (leave blank to keep)"
+                      value={form.openrouterKey}
+                      onChange={(e) => setField('openrouterKey', e.target.value)}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>
                       Claude API key{' '}
                       {cfg.keys.claude ? (
                         <span className="tag-on">set</span>
                       ) : (
-                        <span className="tag-off">missing</span>
+                        <span className="tag-off">optional</span>
                       )}
                     </span>
                     <input
@@ -1326,9 +1345,8 @@ export default function AdminPanel({ open, onClose, currentUser }) {
               <div className="admin-block-title">AI Models</div>
               <p className="settings-hint">
                 Add multiple AI models, each with its <strong>own API key</strong>, and pick which
-                one audits use. Handy when a key runs out of credits — just switch the active model.
-                Claude (Anthropic) models run today; OpenAI/Gemini can be saved now and will run
-                once their adapter ships.
+                one audits use. OpenRouter, Claude (Anthropic), and Gemini all run today. One
+                OpenRouter key can power many model profiles (same key, different model slugs).
               </p>
               {aiNotice && (
                 <div className="notice-box" style={{ marginBottom: 10 }}>
@@ -1340,7 +1358,7 @@ export default function AdminPanel({ open, onClose, currentUser }) {
                 <div className="settings-row">
                   <span style={{ color: 'var(--text-muted)' }}>
                     No models yet — add one below. Until then, audits use the model in Settings +
-                    the .env Claude key.
+                    the .env OpenRouter key (or Claude key as fallback).
                   </span>
                 </div>
               ) : (

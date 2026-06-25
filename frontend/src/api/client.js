@@ -357,7 +357,7 @@ export async function getAdminConfig() {
   return r.json()
 }
 
-// Update .env ({ claudeKey?, psiKey?, figmaToken?, nodeEnv?, frontendUrl?, headless? }).
+// Update .env ({ openrouterKey?, claudeKey?, psiKey?, figmaToken?, nodeEnv?, frontendUrl?, headless? }).
 export async function updateAdminConfig(patch) {
   const r = await fetch(`${API_BASE}/admin/config`, {
     method: 'PUT',

@@ -4,15 +4,19 @@
 //  Run: npm start   (from the backend/ directory)
 // ─────────────────────────────────────────────────────────────────────────────
 import { createApp } from './app.js'
-import { config } from './config/index.js'
+import { config, hasEnvAiKey } from './config/index.js'
 
 const app = createApp()
 
 app.listen(config.port, () => {
   const status = {
-    Claude: config.keys.claude ? '✓' : '✗ MISSING',
+    OpenRouter: config.keys.openrouter ? '✓' : config.keys.claude ? '○ using Claude' : '✗ MISSING',
+    Claude: config.keys.claude ? '✓ (fallback)' : '○ optional',
     PageSpeed: config.keys.psi ? '✓' : '○ optional',
     Figma: config.keys.figma ? '✓' : '○ optional',
+  }
+  if (!hasEnvAiKey()) {
+    status.OpenRouter = '✗ MISSING — set OPENROUTER_API_KEY in .env'
   }
   const browserMode = config.playwright.headless ? 'headless' : 'headed — visible window'
   console.log(`\n  QA Tool Backend — http://localhost:${config.port}`)
