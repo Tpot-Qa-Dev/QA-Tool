@@ -26,6 +26,15 @@ export const config = {
     psi: process.env.PSI_API_KEY || '',
     figma: process.env.FIGMA_TOKEN || '',
   },
+  // Authentication / RBAC. JWT_SECRET signs login tokens; the ADMIN_* pair seeds
+  // the first admin account (see db/seed.js). Set all three in backend/.env.
+  auth: {
+    jwtSecret: process.env.JWT_SECRET || 'dev-insecure-secret-change-me',
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    adminEmail: process.env.ADMIN_EMAIL || 'admin@qa-tool.local',
+    adminPassword: process.env.ADMIN_PASSWORD || '',
+    adminName: process.env.ADMIN_NAME || 'Administrator',
+  },
   playwright: {
     // HEADLESS=false in .env runs Chromium in a visible window (for debugging).
     // Any other value (or unset) keeps it headless.

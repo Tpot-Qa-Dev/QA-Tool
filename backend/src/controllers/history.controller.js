@@ -13,10 +13,16 @@ import {
   rebuildIndexNow,
 } from '../services/history.service.js'
 
+// Admins see every report; a normal user is scoped to the reports they own.
+// `undefined` means "no owner filter" (admin); a number scopes to that user.
+function scopeFor(req) {
+  return req.user?.role === 'admin' ? undefined : req.user?.id
+}
+
 export async function getHistoryList(req, res) {
   try {
     const { q, module, limit, offset } = req.query
-    const result = await listReports({ q, module, limit, offset })
+    const result = await listReports({ q, module, limit, offset, ownerId: scopeFor(req) })
     res.json(result) // { reports, total, limit, offset }
   } catch (err) {
     console.error('[history] list error:', err)
@@ -26,7 +32,7 @@ export async function getHistoryList(req, res) {
 
 export async function getHistoryItem(req, res) {
   try {
-    const report = await getReport(req.params.id)
+    const report = await getReport(req.params.id, { ownerId: scopeFor(req) })
     if (!report) return res.status(404).json({ error: 'Report not found' })
     res.json({ report })
   } catch (err) {
@@ -43,7 +49,7 @@ export async function putHistoryItem(req, res) {
     if (!report || typeof report !== 'object') {
       return res.status(400).json({ error: 'A report object is required' })
     }
-    const meta = await saveReport(req.params.id, report)
+    const meta = await saveReport(req.params.id, report, req.user?.id ?? null)
     res.json({ ok: true, meta })
   } catch (err) {
     console.error('[history] save error:', err)
@@ -53,7 +59,7 @@ export async function putHistoryItem(req, res) {
 
 export async function deleteHistoryItem(req, res) {
   try {
-    const ok = await deleteReport(req.params.id)
+    const ok = await deleteReport(req.params.id, { ownerId: scopeFor(req) })
     if (!ok) return res.status(404).json({ error: 'Report not found' })
     res.json({ ok: true })
   } catch (err) {

@@ -7,8 +7,17 @@
 import { AppBar, Toolbar, Box, Typography, Chip, IconButton, Tooltip } from '@mui/material'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
+import LogoutIcon from '@mui/icons-material/Logout'
 
-export default function Header({ reportId, health, theme, onToggleTheme, title = 'Dashboard' }) {
+export default function Header({
+  reportId,
+  health,
+  theme,
+  onToggleTheme,
+  title = 'Dashboard',
+  user,
+  onLogout,
+}) {
   const online = health?.ok
 
   return (
@@ -66,6 +75,23 @@ export default function Header({ reportId, health, theme, onToggleTheme, title =
               )}
             </IconButton>
           </Tooltip>
+          {user && (
+            <Tooltip title={`${user.email} · ${user.role}`}>
+              <Chip
+                size="small"
+                label={user.name || user.email}
+                color={user.role === 'admin' ? 'primary' : 'default'}
+                variant="outlined"
+              />
+            </Tooltip>
+          )}
+          {user && (
+            <Tooltip title="Sign out">
+              <IconButton onClick={onLogout} color="inherit" size="small">
+                <LogoutIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
       </Toolbar>
     </AppBar>

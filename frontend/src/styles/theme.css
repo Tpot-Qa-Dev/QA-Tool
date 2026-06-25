@@ -8,44 +8,46 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #0a0b0f;
-  --surface: #13151c;
-  --surface-2: #1a1d28;
-  --surface-3: #22263a;
-  --inset: #0d0f16;
+  --bg: #0e1116;
+  --surface: #171a21;
+  --surface-2: #1e222b;
+  --surface-3: #272c37;
+  --inset: #0b0d12;
 
-  --border: #252836;
-  --border-strong: #333647;
+  --border: #2a2f3a;
+  --border-strong: #3a4150;
 
-  --text: #e8ecf4;
-  --text-2: #c4c9d4;
-  --text-dim: #9ca3af;
+  --text: #e6e8ec;
+  --text-2: #b8bdc7;
+  --text-dim: #8a909c;
   --text-muted: #6b7280;
-  --text-faint: #3d4251;
+  --text-faint: #474d59;
 
-  --accent: #00e5ff;
-  --accent-2: #a78bfa;
-  --on-accent: #0a0b0f;
+  /* One muted accent; accent-2 is a quiet slate used only where a second
+     neutral tone is needed. No neon, no second hue. */
+  --accent: #3b82f6;
+  --accent-2: #64748b;
+  --on-accent: #ffffff;
 
-  --pass: #00ff94;
-  --warn: #ff9f43;
-  --fail: #ff4560;
-  --info: #00e5ff;
+  --pass: #22c55e;
+  --warn: #f59e0b;
+  --fail: #ef4444;
+  --info: #3b82f6;
 
-  --shadow-sm: 0 2px 14px -6px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px -1px rgba(0, 0, 0, 0.4);
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg: #eef0f5;
+  --bg: #f7f8fa;
   --surface: #ffffff;
-  --surface-2: #f6f7fa;
-  --surface-3: #edeff4;
-  --inset: #f2f3f7;
+  --surface-2: #f1f3f6;
+  --surface-3: #e7eaef;
+  --inset: #f3f4f7;
 
-  --border: #e3e5ec;
-  --border-strong: #cdd0da;
+  --border: #e2e5eb;
+  --border-strong: #cdd2db;
 
   --text: #14161d;
   --text-2: #3a3f4c;
@@ -53,14 +55,14 @@
   --text-muted: #828896;
   --text-faint: #a6abb8;
 
-  --accent: #0891b2;
-  --accent-2: #7c3aed;
+  --accent: #2563eb;
+  --accent-2: #64748b;
   --on-accent: #ffffff;
 
-  --pass: #059669;
+  --pass: #16a34a;
   --warn: #d97706;
   --fail: #dc2626;
-  --info: #0891b2;
+  --info: #2563eb;
 
-  --shadow-sm: 0 2px 14px -6px rgba(30, 41, 80, 0.16);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px -1px rgba(16, 24, 40, 0.1);
 }

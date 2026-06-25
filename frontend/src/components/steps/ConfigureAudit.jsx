@@ -47,6 +47,7 @@ export default function ConfigureAudit({
   recentUrls = [],
   recentFigmaUrls = [],
   figmaProjects = { projects: [], activeId: '' },
+  aiModels = { profiles: [], activeId: '' },
   health,
   canRun,
   onBack,
@@ -291,6 +292,37 @@ export default function ConfigureAudit({
           </div>
         )}
       </div>
+
+      {/* AI model — optional per-audit pick from the models the admin permitted.
+          Leaving it on the default uses the admin's active model. */}
+      {aiModels.profiles.length > 0 && (
+        <div className="card">
+          <div className="input-group">
+            <div className="input-label">🤖 AI model</div>
+            <select
+              className="input-field"
+              value={inputs.aiModelId || ''}
+              onChange={(e) => setInput('aiModelId', e.target.value)}
+            >
+              <option value="">
+                Recommended default
+                {(() => {
+                  const a = aiModels.profiles.find((p) => p.id === aiModels.activeId)
+                  return a ? ` (${a.label})` : ''
+                })()}
+              </option>
+              {aiModels.profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label} — {p.model}
+                </option>
+              ))}
+            </select>
+            <div className="file-name-hint">
+              Applies to this audit only. Leave on the default to use the admin’s active model.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Page sections — optional. Scan the page and pick which sections to test;
           unticked sections are skipped entirely in the audit + report. */}

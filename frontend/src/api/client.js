@@ -4,6 +4,113 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const API_BASE = '/api'
+const TOKEN_KEY = 'qa_tool_token'
+
+// ── Auth token store ──────────────────────────────────────────────────────────
+// The JWT lives in localStorage so a refresh keeps the user signed in.
+export function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+export function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token)
+    else localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    /* ignore storage errors (private mode) */
+  }
+}
+export function clearToken() {
+  setToken(null)
+}
+
+// Install a one-time fetch wrapper that attaches the Bearer token to every
+// same-origin /api request (except login) and signals an app-wide logout when
+// the backend rejects the session with 401. Doing this here means none of the
+// 30+ endpoint helpers below need to know about auth. Call once at startup.
+let interceptorInstalled = false
+export function installAuthInterceptor() {
+  if (interceptorInstalled) return
+  interceptorInstalled = true
+  const nativeFetch = window.fetch.bind(window)
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input?.url || ''
+    const isApi = url.startsWith(API_BASE) || url.startsWith('/api')
+    const isLogin = url.includes('/auth/login')
+    if (isApi && !isLogin) {
+      const token = getToken()
+      if (token) {
+        const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined))
+        headers.set('Authorization', `Bearer ${token}`)
+        init = { ...init, headers }
+      }
+    }
+    const res = await nativeFetch(input, init)
+    if (res.status === 401 && isApi && !isLogin) {
+      clearToken()
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+    }
+    return res
+  }
+}
+
+// ── Auth API ──────────────────────────────────────────────────────────────────
+
+// Log in with email + password. Returns { token, user }; also persists the token.
+export async function login(email, password) {
+  const r = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`)
+  if (data.token) setToken(data.token)
+  return data
+}
+
+// Fetch the currently authenticated user (validates the stored token).
+export async function getMe() {
+  const r = await fetch(`${API_BASE}/auth/me`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()).user
+}
+
+// Admin: list / create / update / delete user accounts.
+export async function listUsers() {
+  const r = await fetch(`${API_BASE}/auth/users`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()).users || []
+}
+export async function createUser(payload) {
+  const r = await fetch(`${API_BASE}/auth/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`)
+  return data.user
+}
+export async function updateUser(id, patch) {
+  const r = await fetch(`${API_BASE}/auth/users/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`)
+  return data.user
+}
+export async function deleteUser(id) {
+  const r = await fetch(`${API_BASE}/auth/users/${id}`, { method: 'DELETE' })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`)
+  return true
+}
 
 // Check backend health and key status
 export async function checkHealth() {
@@ -185,6 +292,13 @@ export async function deletePromptVersion(id) {
 }
 
 // ── AI model profiles (multiple models, each with its own API key) ───────────
+
+// User-facing: only the models the admin permitted users to pick (keys masked).
+export async function listUserAiModels() {
+  const r = await fetch(`${API_BASE}/ai-models`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json() // { profiles, activeId }
+}
 
 export async function listAiModels() {
   const r = await fetch(`${API_BASE}/admin/ai-models`)

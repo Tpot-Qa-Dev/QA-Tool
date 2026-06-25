@@ -3,6 +3,7 @@
 //  Admin dashboard — read-only overview stats and prompt inspection.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Router } from 'express'
+import { requireAdmin } from '../middleware/auth.js'
 import {
   getAdminOverview,
   getAdminPrompts,
@@ -21,6 +22,9 @@ import {
 } from '../controllers/admin.controller.js'
 
 const router = Router()
+
+// Every admin endpoint is admin-only (authenticate already ran upstream).
+router.use(requireAdmin)
 
 router.get('/admin/overview', getAdminOverview)
 router.get('/admin/prompts', getAdminPrompts)

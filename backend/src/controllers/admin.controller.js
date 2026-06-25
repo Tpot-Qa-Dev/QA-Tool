@@ -90,8 +90,8 @@ export async function getAdminAiModels(_req, res) {
 
 export async function postAdminAiModel(req, res) {
   try {
-    const { label, provider, model, apiKey } = req.body || {}
-    res.json(await addProfile({ label, provider, model, apiKey }))
+    const { label, provider, model, apiKey, allowedForUsers } = req.body || {}
+    res.json(await addProfile({ label, provider, model, apiKey, allowedForUsers }))
   } catch (err) {
     res.status(400).json({ error: err.message })
   }
@@ -107,8 +107,8 @@ export async function putAdminAiModelActive(req, res) {
 
 export async function putAdminAiModel(req, res) {
   try {
-    const { label, model, provider, apiKey } = req.body || {}
-    res.json(await updateProfile(req.params.id, { label, model, provider, apiKey }))
+    const { label, model, provider, apiKey, allowedForUsers } = req.body || {}
+    res.json(await updateProfile(req.params.id, { label, model, provider, apiKey, allowedForUsers }))
   } catch (err) {
     res.status(400).json({ error: err.message })
   }

@@ -13,6 +13,7 @@ export function useAudit() {
   const [toolCalls, setToolCalls] = useState([])
   const [report, setReport] = useState(null)
   const [error, setError] = useState(null)
+  const [usage, setUsage] = useState(null)
   const logRef = useRef(null)
 
   // Append a log line and keep the log box scrolled to the bottom.
@@ -54,10 +55,14 @@ export function useAudit() {
             t.map((tc) => (tc.tool === data.tool ? { ...tc, status: 'error' } : tc)),
           )
           break
+        case 'usage_update':
+          setUsage(data)
+          break
         case 'complete':
           setProgress(100)
           addLog('✅ Audit complete!', true)
           setReport(data.report ?? data)
+          if (data.report?.usage) setUsage(data.report.usage)
           break
         case 'error':
           setError(data.message)
@@ -77,6 +82,7 @@ export function useAudit() {
       setToolCalls([])
       setReport(null)
       setError(null)
+      setUsage(null)
 
       try {
         await runAudit(
@@ -91,5 +97,5 @@ export function useAudit() {
     [handleEvent, addLog],
   )
 
-  return { progress, logs, toolCalls, report, error, logRef, start }
+  return { progress, logs, toolCalls, report, error, usage, logRef, start }
 }

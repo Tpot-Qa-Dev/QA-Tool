@@ -20,8 +20,9 @@ import { getSettings } from './settings.service.js'
 import { addUsage } from './usage.service.js'
 import { resolveToken as resolveFigmaToken } from './figmaProjects.service.js'
 import { getActiveInstructions } from './promptConfig.service.js'
-import { getActiveProfile } from './aiModels.service.js'
+import { getActiveProfile, getSelectableProfile } from './aiModels.service.js'
 import { makeGeminiClient } from '../tools/geminiAdapter.js'
+import { makeOpenRouterClient } from '../tools/openrouterAdapter.js'
 
 const anthropic = new Anthropic({ apiKey: config.keys.claude })
 
@@ -145,6 +146,8 @@ export async function runAudit(
     environmentHint,
     figmaProject,
     sections,
+    aiModelId,
+    ownerId = null,
   },
   emit,
   client = anthropic,
@@ -168,7 +171,9 @@ export async function runAudit(
   // their own client and must keep it).
   let activeClient = client
   try {
-    const profile = await getActiveProfile()
+    // The user's per-audit pick wins (if the admin permitted it); otherwise the
+    // admin's active default model is used.
+    const profile = (aiModelId && (await getSelectableProfile(aiModelId))) || (await getActiveProfile())
     if (profile) {
       if (!profile.runnable) {
         emit('error', {
@@ -186,6 +191,14 @@ export async function runAudit(
           return null
         }
         activeClient = makeGeminiClient(profile.apiKey)
+      } else if (profile.provider === 'openrouter') {
+        if (!profile.apiKey) {
+          emit('error', {
+            message: `The active model "${profile.label}" (OpenRouter) has no API key. Add one in Admin → AI Models → Edit.`,
+          })
+          return null
+        }
+        activeClient = makeOpenRouterClient(profile.apiKey)
       } else {
         // anthropic
         if (client === anthropic && profile.apiKey)
@@ -306,8 +319,10 @@ export async function runAudit(
   const calledTools = new Set()
   const failedTools = new Set()
   let nudges = 0
-  // Running token tally across every Claude call this audit.
-  const usage = { inputTokens: 0, outputTokens: 0, calls: 0 }
+  // Running token tally across every Claude call this audit. `byModel` keys the
+  // same totals by model name so the UI can show a live per-model breakdown and
+  // the cumulative counter can total spend per model over time.
+  const usage = { inputTokens: 0, outputTokens: 0, calls: 0, byModel: {} }
   // Whether Claude grabbed a full-page screenshot while gathering data. We don't
   // embed that full-page shot in the report (the user wants targeted evidence
   // shots of actual mistakes, not a whole-page screenshot) — it's only used to
@@ -343,9 +358,25 @@ export async function runAudit(
 
       // Tally tokens for this call (usage may be absent on some error shapes).
       if (response.usage) {
-        usage.inputTokens += response.usage.input_tokens || 0
-        usage.outputTokens += response.usage.output_tokens || 0
+        const inT = response.usage.input_tokens || 0
+        const outT = response.usage.output_tokens || 0
+        usage.inputTokens += inT
+        usage.outputTokens += outT
         usage.calls += 1
+        // Per-model running totals (keyed by the active model name).
+        const m = (usage.byModel[model] ||= { inputTokens: 0, outputTokens: 0, calls: 0 })
+        m.inputTokens += inT
+        m.outputTokens += outT
+        m.calls += 1
+        // Stream the live tally so the UI can show tokens climbing in real time.
+        emit('usage_update', {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.inputTokens + usage.outputTokens,
+          calls: usage.calls,
+          model,
+          byModel: usage.byModel,
+        })
       }
 
       const textBlocks = response.content.filter((b) => b.type === 'text')
@@ -507,7 +538,7 @@ export async function runAudit(
         // the frontend re-fetches the history list.
         if (reportId) {
           try {
-            await saveReport(reportId, report)
+            await saveReport(reportId, report, ownerId)
           } catch (err) {
             console.error('[audit] history save failed:', err.message)
           }

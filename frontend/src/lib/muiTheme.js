@@ -6,36 +6,37 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createTheme } from '@mui/material/styles'
 
+// Mirrors styles/theme.css (Neutral / minimal mono palette). Keep in sync.
 const TOKENS = {
   dark: {
-    bg: '#0A0B0F',
-    surface: '#13151C',
-    surface2: '#1A1D28',
-    border: '#252836',
-    text: '#E8ECF4',
-    text2: '#C4C9D4',
-    muted: '#6B7280',
-    accent: '#00E5FF',
-    accent2: '#A78BFA',
-    onAccent: '#0A0B0F',
-    pass: '#00FF94',
-    warn: '#FF9F43',
-    fail: '#FF4560',
+    bg: '#0e1116',
+    surface: '#171a21',
+    surface2: '#1e222b',
+    border: '#2a2f3a',
+    text: '#e6e8ec',
+    text2: '#b8bdc7',
+    muted: '#6b7280',
+    accent: '#3b82f6',
+    accent2: '#64748b',
+    onAccent: '#ffffff',
+    pass: '#22c55e',
+    warn: '#f59e0b',
+    fail: '#ef4444',
   },
   light: {
-    bg: '#EEF0F5',
-    surface: '#FFFFFF',
-    surface2: '#F6F7FA',
-    border: '#E3E5EC',
-    text: '#14161D',
-    text2: '#3A3F4C',
+    bg: '#f7f8fa',
+    surface: '#ffffff',
+    surface2: '#f1f3f6',
+    border: '#e2e5eb',
+    text: '#14161d',
+    text2: '#3a3f4c',
     muted: '#828896',
-    accent: '#0891B2',
-    accent2: '#7C3AED',
-    onAccent: '#FFFFFF',
-    pass: '#059669',
-    warn: '#D97706',
-    fail: '#DC2626',
+    accent: '#2563eb',
+    accent2: '#64748b',
+    onAccent: '#ffffff',
+    pass: '#16a34a',
+    warn: '#d97706',
+    fail: '#dc2626',
   },
 }
 
@@ -43,7 +44,7 @@ export function buildMuiTheme(mode = 'dark', ui = {}) {
   const t = TOKENS[mode] || TOKENS.dark
   const accent = ui.accent || t.accent
   const accent2 = ui.accent2 || t.accent2
-  const radius = Number.isFinite(ui.radius) ? ui.radius : 14
+  const radius = Number.isFinite(ui.radius) ? ui.radius : 8
   return createTheme({
     palette: {
       mode,
@@ -59,7 +60,7 @@ export function buildMuiTheme(mode = 'dark', ui = {}) {
     },
     shape: { borderRadius: radius },
     typography: {
-      fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+      fontFamily: "'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       fontSize: 13,
       h6: { fontWeight: 700, letterSpacing: '-0.3px' },
       button: { textTransform: 'none', fontWeight: 600 },
@@ -67,7 +68,7 @@ export function buildMuiTheme(mode = 'dark', ui = {}) {
     components: {
       MuiButton: {
         defaultProps: { disableElevation: true },
-        styleOverrides: { root: { borderRadius: 20 } },
+        styleOverrides: { root: { borderRadius: 8 } },
       },
       MuiAppBar: {
         styleOverrides: {
@@ -79,7 +80,6 @@ export function buildMuiTheme(mode = 'dark', ui = {}) {
           },
         },
       },
-      MuiChip: { styleOverrides: { root: { fontFamily: "'JetBrains Mono', monospace" } } },
       MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
     },
   })

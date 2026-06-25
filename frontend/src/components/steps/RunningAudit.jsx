@@ -13,6 +13,8 @@ const STAGES = [
   'Generating report',
 ]
 
+const fmt = (n) => (Number(n) || 0).toLocaleString()
+
 export default function RunningAudit({
   mod,
   url,
@@ -20,9 +22,16 @@ export default function RunningAudit({
   progressLabel,
   toolCalls,
   logs,
+  usage,
   logRef,
 }) {
   const accent = mod?.color || COLORS.info
+  // Per-model rows for the live token panel, biggest spender first.
+  const modelRows = usage?.byModel
+    ? Object.entries(usage.byModel)
+        .map(([name, m]) => ({ name, ...m, total: (m.inputTokens || 0) + (m.outputTokens || 0) }))
+        .sort((a, b) => b.total - a.total)
+    : []
 
   return (
     <Box className="fade-in">
@@ -85,6 +94,63 @@ export default function RunningAudit({
             )
           })}
         </Stack>
+
+        {usage && (
+          <Box
+            sx={{
+              mt: 2.5,
+              mx: 'auto',
+              maxWidth: 480,
+              p: 1.5,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: `color-mix(in srgb, ${accent} 6%, transparent)`,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 1 }}>
+              <Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", color: accent }}>
+                {fmt(usage.totalTokens)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                tokens · {fmt(usage.inputTokens)} in · {fmt(usage.outputTokens)} out ·{' '}
+                {fmt(usage.calls)} call{usage.calls === 1 ? '' : 's'}
+              </Typography>
+            </Box>
+            {modelRows.length > 0 && (
+              <Stack spacing={0.5} sx={{ mt: 1 }}>
+                {modelRows.map((m) => (
+                  <Box
+                    key={m.name}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 1,
+                      fontSize: 12,
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={m.name}
+                    >
+                      {m.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                      {fmt(m.total)} ({fmt(m.inputTokens)}/{fmt(m.outputTokens)})
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Box>
+        )}
 
         {toolCalls.length > 0 && (
           <Stack

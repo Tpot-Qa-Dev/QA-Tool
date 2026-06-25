@@ -24,6 +24,7 @@ const FILE = join(backendRoot, 'ai-models.json')
 export const PROVIDERS = {
   anthropic: { label: 'Claude (Anthropic)', runnable: true },
   google: { label: 'Google Gemini', runnable: true },
+  openrouter: { label: 'OpenRouter (any model)', runnable: true },
   openai: { label: 'OpenAI', runnable: false },
 }
 
@@ -56,6 +57,7 @@ const publicProfile = (p, activeId) => ({
   hasKey: !!p.apiKey,
   runnable: !!PROVIDERS[p.provider]?.runnable,
   active: p.id === activeId,
+  allowedForUsers: !!p.allowedForUsers, // admin permitted normal users to pick this
 })
 
 export async function listProfiles() {
@@ -67,7 +69,7 @@ export async function listProfiles() {
   }
 }
 
-export async function addProfile({ label, provider, model, apiKey } = {}) {
+export async function addProfile({ label, provider, model, apiKey, allowedForUsers } = {}) {
   const cleanLabel = String(label || '')
     .trim()
     .slice(0, 80)
@@ -87,6 +89,7 @@ export async function addProfile({ label, provider, model, apiKey } = {}) {
     provider: prov,
     model: cleanModel,
     apiKey: cleanKey,
+    allowedForUsers: !!allowedForUsers,
     createdAt: new Date().toISOString(),
   }
   store.profiles.push(profile)
@@ -98,7 +101,7 @@ export async function addProfile({ label, provider, model, apiKey } = {}) {
 // Edit a profile. label/model/provider updated when a non-empty value is given;
 // apiKey updated only when a non-empty value is supplied (blank = keep current,
 // so the masked key in the UI doesn't have to be re-typed).
-export async function updateProfile(id, { label, model, provider, apiKey } = {}) {
+export async function updateProfile(id, { label, model, provider, apiKey, allowedForUsers } = {}) {
   const store = await readStore()
   const p = store.profiles.find((x) => x.id === id)
   if (!p) throw new Error('profile not found')
@@ -106,6 +109,7 @@ export async function updateProfile(id, { label, model, provider, apiKey } = {})
   if (typeof label === 'string' && label.trim()) p.label = label.trim().slice(0, 80)
   if (typeof model === 'string' && model.trim()) p.model = model.trim().slice(0, 120)
   if (typeof apiKey === 'string' && apiKey.trim()) p.apiKey = apiKey.trim()
+  if (typeof allowedForUsers === 'boolean') p.allowedForUsers = allowedForUsers
   await writeStore(store)
   return listProfilesFrom(store)
 }
@@ -137,6 +141,38 @@ const listProfilesFrom = (store) => ({
 export async function getActiveProfile() {
   const store = await readStore()
   const p = store.activeId && store.profiles.find((x) => x.id === store.activeId)
+  if (!p) return null
+  return {
+    id: p.id,
+    label: p.label,
+    provider: p.provider,
+    model: p.model,
+    apiKey: p.apiKey,
+    runnable: !!PROVIDERS[p.provider]?.runnable,
+  }
+}
+
+// For NORMAL users: only the profiles the admin permitted (allowedForUsers).
+// Keys stay masked (publicProfile). The default is the admin's active model,
+// but only if that model is itself permitted for users.
+export async function listAllowedProfiles() {
+  const store = await readStore()
+  const allowed = store.profiles.filter((p) => p.allowedForUsers)
+  const activeId = allowed.some((p) => p.id === store.activeId) ? store.activeId : ''
+  return {
+    profiles: allowed.map((p) => publicProfile(p, activeId)),
+    activeId,
+  }
+}
+
+// For the audit engine: the FULL profile (raw key) for a user-chosen id, but
+// ONLY if it exists AND the admin permitted it for users. Otherwise null, so the
+// caller falls back to the active default. This is the server-side permission
+// guard — a client can't run a model the admin didn't allow.
+export async function getSelectableProfile(id) {
+  if (!id) return null
+  const store = await readStore()
+  const p = store.profiles.find((x) => x.id === id && x.allowedForUsers)
   if (!p) return null
   return {
     id: p.id,

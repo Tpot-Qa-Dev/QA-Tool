@@ -19,31 +19,10 @@ export function revealAll(sel = '.card, .module-card', stagger = 55) {
   })
 }
 
-// Attach pointer-based 3D tilt to matching elements (once each).
-export function attachTilt(sel = '.module-card', max = 9) {
-  if (fxOff()) return () => {}
-  const cleanups = []
-  for (const el of document.querySelectorAll(sel)) {
-    if (el.dataset.tilt) continue
-    el.dataset.tilt = '1'
-    const move = (e) => {
-      const r = el.getBoundingClientRect()
-      const px = (e.clientX - r.left) / r.width - 0.5
-      const py = (e.clientY - r.top) / r.height - 0.5
-      el.style.transform = `perspective(720px) rotateY(${px * max}deg) rotateX(${-py * max}deg) translateZ(8px)`
-    }
-    const leave = () => {
-      el.style.transform = ''
-    }
-    el.addEventListener('pointermove', move)
-    el.addEventListener('pointerleave', leave)
-    cleanups.push(() => {
-      el.removeEventListener('pointermove', move)
-      el.removeEventListener('pointerleave', leave)
-      delete el.dataset.tilt
-    })
-  }
-  return () => cleanups.forEach((fn) => fn())
+// 3D hover tilt was part of the old "neon dark" look; the neutral/minimal theme
+// drops it. Kept as a no-op so existing callers don't need to change.
+export function attachTilt() {
+  return () => {}
 }
 
 // Animate a number from 0 → `to`. Returns a cleanup. Used by useCountUp.

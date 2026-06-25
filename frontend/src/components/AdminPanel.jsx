@@ -36,9 +36,18 @@ const MODEL_PRESETS = {
   anthropic: ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
   google: ['gemini-2.0-flash', 'gemini-1.5-pro'],
+  // OpenRouter takes a provider-prefixed slug. These all support tool calling,
+  // which this agentic audit loop requires (many small/free models do not).
+  openrouter: [
+    'anthropic/claude-3.5-sonnet',
+    'openai/gpt-4o-mini',
+    'google/gemini-2.0-flash-001',
+    'deepseek/deepseek-chat',
+  ],
 }
 import { MODULES } from '../config/modules.js'
 import { applyAppearance } from '../lib/applyAppearance.js'
+import UserManager from './UserManager.jsx'
 import DescriptionIcon from '@mui/icons-material/Description'
 import SpeedIcon from '@mui/icons-material/Speed'
 import BoltIcon from '@mui/icons-material/Bolt'
@@ -68,7 +77,7 @@ function StatCard({ num, label, icon, color }) {
   )
 }
 
-export default function AdminPanel({ open, onClose }) {
+export default function AdminPanel({ open, onClose, currentUser }) {
   const [ov, setOv] = useState(null)
   const [prompts, setPrompts] = useState(null)
   const [cfg, setCfg] = useState(null)
@@ -121,6 +130,7 @@ export default function AdminPanel({ open, onClose }) {
     provider: 'anthropic',
     model: 'claude-sonnet-4-6',
     apiKey: '',
+    allowedForUsers: false,
   })
   const [aiBusy, setAiBusy] = useState(false)
   const [aiNotice, setAiNotice] = useState(null)
@@ -238,7 +248,13 @@ export default function AdminPanel({ open, onClose }) {
   // ── AI model actions ─────────────────────────────────────────────────────
   const aiResetForm = () => {
     setAiEditId(null)
-    setAiForm({ label: '', provider: 'anthropic', model: 'claude-sonnet-4-6', apiKey: '' })
+    setAiForm({
+      label: '',
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-6',
+      apiKey: '',
+      allowedForUsers: false,
+    })
   }
 
   const aiAdd = async () => {
@@ -260,9 +276,29 @@ export default function AdminPanel({ open, onClose }) {
   // Load a profile into the form for editing (key left blank = keep current).
   const aiStartEdit = (p) => {
     setAiEditId(p.id)
-    setAiForm({ label: p.label, provider: p.provider, model: p.model, apiKey: '' })
+    setAiForm({
+      label: p.label,
+      provider: p.provider,
+      model: p.model,
+      apiKey: '',
+      allowedForUsers: !!p.allowedForUsers,
+    })
     setAiNotice(null)
     setError(null)
+  }
+
+  // Toggle the "users may pick this model" permission straight from the table.
+  const aiToggleAllowed = async (p) => {
+    setAiBusy(true)
+    setError(null)
+    setAiNotice(null)
+    try {
+      setAiCfg(await updateAiModel(p.id, { allowedForUsers: !p.allowedForUsers }))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setAiBusy(false)
+    }
   }
   const aiSaveEdit = async () => {
     if (!aiEditId || !aiForm.label.trim() || !aiForm.model.trim()) return
@@ -473,6 +509,7 @@ export default function AdminPanel({ open, onClose }) {
 
   const SECTIONS = [
     { key: 'overview', label: 'Overview', icon: '📊' },
+    { key: 'users', label: 'Users', icon: '👤' },
     { key: 'config', label: 'Configuration', icon: '🔑' },
     { key: 'models', label: 'AI Models', icon: '🤖' },
     { key: 'appearance', label: 'Appearance', icon: '🎨' },
@@ -852,6 +889,13 @@ export default function AdminPanel({ open, onClose }) {
                 </div>
               </>
             ))}
+
+          {/* USERS */}
+          {section === 'users' && (
+            <div className="admin-block">
+              <UserManager currentUser={currentUser} />
+            </div>
+          )}
 
           {/* CONFIGURATION */}
           {section === 'config' &&
@@ -1307,6 +1351,7 @@ export default function AdminPanel({ open, onClose }) {
                       <th>Provider</th>
                       <th>Key</th>
                       <th>Active</th>
+                      <th>Users can pick</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -1349,6 +1394,19 @@ export default function AdminPanel({ open, onClose }) {
                               name="ai-active"
                               checked={p.active}
                               onChange={() => aiActivate(p.id)}
+                            />
+                          </label>
+                        </td>
+                        <td>
+                          <label
+                            style={{ cursor: 'pointer' }}
+                            title="Let normal users choose this model when running an audit"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!!p.allowedForUsers}
+                              disabled={aiBusy}
+                              onChange={() => aiToggleAllowed(p)}
                             />
                           </label>
                         </td>
@@ -1448,6 +1506,17 @@ export default function AdminPanel({ open, onClose }) {
                     value={aiForm.apiKey}
                     onChange={(e) => setAiField('apiKey', e.target.value)}
                   />
+                </label>
+                <label
+                  className="settings-field"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!aiForm.allowedForUsers}
+                    onChange={(e) => setAiField('allowedForUsers', e.target.checked)}
+                  />
+                  <span>Let users pick this model on the audit screen</span>
                 </label>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

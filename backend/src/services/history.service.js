@@ -1,231 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  services/history.service.js
-//  File-based persistence of audit reports under backend/reports/<id>.json.
-//  The directory is created on demand; reports are kept indefinitely.
+//  Postgres-backed persistence of audit reports (table `reports`). The full
+//  report JSON lives in the `data` JSONB column; a few fields are mirrored into
+//  columns so listing can filter/sort/search without parsing every blob.
 //
-//  Listing is backed by a single lightweight index file (reports/_index.json)
-//  that holds only the metadata rows. It is updated on every save/delete so the
-//  list endpoint never has to open and parse every full report (which can be
-//  50–200 KB each). The index self-heals: if it is missing or unreadable it is
-//  rebuilt by scanning the directory once.
+//  Owner scoping: pass `ownerId` to restrict to one user's reports. Omit it
+//  (undefined) for an admin view that sees everything, including legacy reports
+//  with no owner. The exported function names are unchanged from the old
+//  file-based store so controllers only need to thread ownership through.
 // ─────────────────────────────────────────────────────────────────────────────
-import { promises as fs } from 'fs'
-import { fileURLToPath } from 'url'
-import { dirname, resolve, join } from 'path'
+import pool from '../config/database.js'
 
-const backendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const REPORTS_DIR = join(backendRoot, 'reports')
-const INDEX_FILE = join(REPORTS_DIR, '_index.json')
-
-// Reject anything that isn't a safe report-id (alnum + dash, no path chars).
+// Reject anything that isn't a safe report-id (alnum + dash/underscore).
 const SAFE_ID = /^[A-Za-z0-9_-]+$/
 function assertSafeId(id) {
   if (!id || !SAFE_ID.test(id)) throw new Error('Invalid report id')
 }
 
-async function ensureDir() {
-  await fs.mkdir(REPORTS_DIR, { recursive: true })
-}
-
-// Is `f` a stored report file (not the index, not a dotfile)?
-const isReportFile = (f) => f.endsWith('.json') && !f.startsWith('_')
-
-// ── Index ─────────────────────────────────────────────────────────────────────
-// The index is persisted as { id: metadata } so upsert/delete are trivial.
-
-async function writeIndex(map) {
-  await fs.writeFile(INDEX_FILE, JSON.stringify(map, null, 2), 'utf8')
-}
-
-// Rebuild the index from scratch by scanning every report file. Used on first
-// run after this feature shipped (no index yet) and to recover from corruption.
-async function rebuildIndex() {
-  await ensureDir()
-  const files = (await fs.readdir(REPORTS_DIR)).filter(isReportFile)
-  const map = {}
-  await Promise.all(
-    files.map(async (f) => {
-      try {
-        const raw = await fs.readFile(join(REPORTS_DIR, f), 'utf8')
-        const meta = toMetadata(JSON.parse(raw))
-        if (meta.id) map[meta.id] = meta
-      } catch {
-        /* skip unreadable / malformed file */
-      }
-    }),
-  )
-  await writeIndex(map)
-  return map
-}
-
-// Read the index, rebuilding it if it is missing or unreadable.
-async function readIndex() {
-  await ensureDir()
-  try {
-    const raw = await fs.readFile(INDEX_FILE, 'utf8')
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object') return parsed
-    return rebuildIndex()
-  } catch (err) {
-    if (err.code === 'ENOENT') return rebuildIndex()
-    // Corrupt index — rebuild rather than fail the request.
-    console.warn('[history] index unreadable, rebuilding:', err.message)
-    return rebuildIndex()
-  }
-}
-
-// ── Public API ──────────────────────────────────────────────────────────────
-
-// Save a report under reports/<id>.json and upsert its row in the index.
-// Returns the metadata row.
-export async function saveReport(id, report) {
-  assertSafeId(id)
-  await ensureDir()
-  const payload = { id, ...report }
-  await fs.writeFile(join(REPORTS_DIR, `${id}.json`), JSON.stringify(payload, null, 2), 'utf8')
-
-  const meta = toMetadata(payload)
-  try {
-    const idx = await readIndex()
-    idx[id] = meta
-    await writeIndex(idx)
-  } catch (err) {
-    // Index update is best-effort — the next list call rebuilds it anyway.
-    console.warn('[history] index update failed (will self-heal):', err.message)
-  }
-  return meta
-}
-
-// List report metadata rows with optional search, module filter and paging.
-//   q       — case-insensitive substring matched against url / headline / id
-//   module  — exact module id filter
-//   limit   — max rows to return (default 25; capped at 200)
-//   offset  — rows to skip (for pagination)
-// Returns { reports, total, limit, offset } where `total` is the filtered
-// count before paging.
-export async function listReports({ q, module, limit, offset } = {}) {
-  const idx = await readIndex()
-  let rows = Object.values(idx)
-
-  if (module) rows = rows.filter((r) => r.module === module)
-
-  if (q) {
-    const needle = String(q).trim().toLowerCase()
-    if (needle) {
-      rows = rows.filter((r) =>
-        `${r.url || ''} ${r.headline || ''} ${r.id || ''}`.toLowerCase().includes(needle),
-      )
-    }
-  }
-
-  rows.sort((a, b) => (b.generatedAt || '').localeCompare(a.generatedAt || ''))
-
-  const total = rows.length
-  const off = Number.isFinite(+offset) && +offset > 0 ? Math.floor(+offset) : 0
-  const lim = Number.isFinite(+limit) && +limit > 0 ? Math.min(Math.floor(+limit), 200) : 25
-  const page = rows.slice(off, off + lim)
-
-  return { reports: page, total, limit: lim, offset: off }
-}
-
-// Load a full report by id, or null if it doesn't exist.
-export async function getReport(id) {
-  assertSafeId(id)
-  try {
-    const raw = await fs.readFile(join(REPORTS_DIR, `${id}.json`), 'utf8')
-    return JSON.parse(raw)
-  } catch (err) {
-    if (err.code === 'ENOENT') return null
-    throw err
-  }
-}
-
-// Delete a report by id and drop it from the index.
-// Returns true if removed, false if it didn't exist.
-export async function deleteReport(id) {
-  assertSafeId(id)
-  try {
-    await fs.unlink(join(REPORTS_DIR, `${id}.json`))
-  } catch (err) {
-    if (err.code === 'ENOENT') return false
-    throw err
-  }
-  try {
-    const idx = await readIndex()
-    if (idx[id]) {
-      delete idx[id]
-      await writeIndex(idx)
-    }
-  } catch (err) {
-    console.warn('[history] index delete failed (will self-heal):', err.message)
-  }
-  return true
-}
-
-// All metadata rows (newest first) — cheap, reads only the index. Used by the
-// admin dashboard to compute aggregate stats.
-export async function getAllMetadata() {
-  const idx = await readIndex()
-  return Object.values(idx).sort((a, b) => (b.generatedAt || '').localeCompare(a.generatedAt || ''))
-}
-
-// ── Maintenance ───────────────────────────────────────────────────────────────
-
-// Count of stored reports + total bytes on disk (reports + index).
-export async function getStats() {
-  await ensureDir()
-  const files = (await fs.readdir(REPORTS_DIR)).filter((f) => f.endsWith('.json'))
-  let totalBytes = 0
-  let count = 0
-  await Promise.all(
-    files.map(async (f) => {
-      try {
-        const st = await fs.stat(join(REPORTS_DIR, f))
-        totalBytes += st.size
-        if (isReportFile(f)) count++
-      } catch {
-        /* ignore */
-      }
-    }),
-  )
-  return { count, totalBytes }
-}
-
-// Force a full index rebuild from the report files on disk. Returns the count.
-export async function rebuildIndexNow() {
-  const map = await rebuildIndex()
-  return { count: Object.keys(map).length }
-}
-
-// Delete every stored report and reset the index. Returns how many were removed.
-export async function clearAll() {
-  await ensureDir()
-  const files = (await fs.readdir(REPORTS_DIR)).filter(isReportFile)
-  await Promise.all(files.map((f) => fs.unlink(join(REPORTS_DIR, f)).catch(() => {})))
-  await writeIndex({})
-  return { removed: files.length }
-}
-
-// Delete reports older than `days` (by generatedAt). Returns how many removed.
-export async function purgeOlderThan(days) {
-  const n = Number(days)
-  if (!Number.isFinite(n) || n < 0) throw new Error('days must be a non-negative number')
-  const cutoff = Date.now() - n * 86_400_000
-  const idx = await readIndex()
-  const stale = Object.values(idx).filter((r) => {
-    const t = Date.parse(r.generatedAt || '')
-    return Number.isFinite(t) && t < cutoff
-  })
-  for (const r of stale) {
-    await fs.unlink(join(REPORTS_DIR, `${r.id}.json`)).catch(() => {})
-    delete idx[r.id]
-  }
-  await writeIndex(idx)
-  return { removed: stale.length }
-}
-
 // Reduce a full report to the fields shown in the history list.
-function toMetadata(report) {
+function toMetadata(report, id) {
   const m = report?.modules || {}
   const counts = Object.values(m).reduce(
     (acc, v) => {
@@ -237,9 +30,8 @@ function toMetadata(report) {
     },
     { pass: 0, warn: 0, fail: 0 },
   )
-
   return {
-    id: report.id,
+    id: id ?? report.id,
     url: report.url || '',
     module: report.module || '',
     score: typeof report.overallScore === 'number' ? report.overallScore : null,
@@ -248,4 +40,127 @@ function toMetadata(report) {
     generatedAt: report.generatedAt || null,
     counts,
   }
+}
+
+// Build the "WHERE owner …" fragment. undefined → no restriction (admin).
+function ownerClause(ownerId, params) {
+  if (ownerId === undefined || ownerId === null) return ''
+  params.push(ownerId)
+  return ` AND owner_id = $${params.length}`
+}
+
+// ── Public API ──────────────────────────────────────────────────────────────
+
+// Upsert a report. `ownerId` stamps the owner on first insert; on re-save an
+// explicit owner wins but a missing one preserves the existing owner.
+export async function saveReport(id, report, ownerId = null) {
+  assertSafeId(id)
+  const payload = { id, ...report }
+  const score = typeof report.overallScore === 'number' ? Math.round(report.overallScore) : null
+  await pool.query(
+    `INSERT INTO reports (id, module, url, title, score, data, owner_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (id) DO UPDATE SET
+       module   = EXCLUDED.module,
+       url      = EXCLUDED.url,
+       title    = EXCLUDED.title,
+       score    = EXCLUDED.score,
+       data     = EXCLUDED.data,
+       owner_id = COALESCE(EXCLUDED.owner_id, reports.owner_id)`,
+    [id, report.module || null, report.url || null, report.headline || null, score, payload, ownerId],
+  )
+  return toMetadata(payload, id)
+}
+
+// List report metadata with optional search / module filter / paging, scoped to
+// `ownerId` unless it's an admin (ownerId undefined).
+export async function listReports({ q, module, limit, offset, ownerId } = {}) {
+  const params = []
+  let where = 'WHERE 1=1'
+  where += ownerClause(ownerId, params)
+  if (module) { params.push(module); where += ` AND module = $${params.length}` }
+  if (q && String(q).trim()) {
+    params.push(`%${String(q).trim()}%`)
+    const p = `$${params.length}`
+    where += ` AND (url ILIKE ${p} OR id ILIKE ${p} OR (data->>'headline') ILIKE ${p})`
+  }
+
+  const totalRes = await pool.query(`SELECT count(*)::int AS n FROM reports ${where}`, params)
+  const total = totalRes.rows[0]?.n ?? 0
+
+  const lim = Number.isFinite(+limit) && +limit > 0 ? Math.min(Math.floor(+limit), 200) : 25
+  const off = Number.isFinite(+offset) && +offset > 0 ? Math.floor(+offset) : 0
+  params.push(lim, off)
+  const { rows } = await pool.query(
+    `SELECT id, data FROM reports ${where}
+     ORDER BY created_at DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    params,
+  )
+  const reports = rows.map((r) => toMetadata(r.data, r.id))
+  return { reports, total, limit: lim, offset: off }
+}
+
+// Load a full report by id (scoped to owner unless admin). null if not found.
+export async function getReport(id, { ownerId } = {}) {
+  assertSafeId(id)
+  const params = [id]
+  let where = 'WHERE id = $1'
+  where += ownerClause(ownerId, params)
+  const { rows } = await pool.query(`SELECT data FROM reports ${where}`, params)
+  return rows[0]?.data || null
+}
+
+// Delete a report (scoped to owner unless admin). true if a row was removed.
+export async function deleteReport(id, { ownerId } = {}) {
+  assertSafeId(id)
+  const params = [id]
+  let where = 'WHERE id = $1'
+  where += ownerClause(ownerId, params)
+  const { rowCount } = await pool.query(`DELETE FROM reports ${where}`, params)
+  return rowCount > 0
+}
+
+// All metadata rows (newest first), scoped to owner unless admin. Used by the
+// admin dashboard to compute aggregate stats.
+export async function getAllMetadata({ ownerId } = {}) {
+  const params = []
+  let where = 'WHERE 1=1'
+  where += ownerClause(ownerId, params)
+  const { rows } = await pool.query(
+    `SELECT id, data FROM reports ${where} ORDER BY created_at DESC`,
+    params,
+  )
+  return rows.map((r) => toMetadata(r.data, r.id))
+}
+
+// ── Maintenance (admin) ───────────────────────────────────────────────────────
+
+export async function getStats() {
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS count, COALESCE(sum(octet_length(data::text)), 0)::bigint AS bytes FROM reports`,
+  )
+  return { count: rows[0]?.count ?? 0, totalBytes: Number(rows[0]?.bytes ?? 0) }
+}
+
+// The Postgres store needs no external index, so "rebuild" just reports the
+// current count (kept for API compatibility with the old file-based store).
+export async function rebuildIndexNow() {
+  const { rows } = await pool.query('SELECT count(*)::int AS n FROM reports')
+  return { count: rows[0]?.n ?? 0 }
+}
+
+export async function clearAll() {
+  const { rowCount } = await pool.query('DELETE FROM reports')
+  return { removed: rowCount }
+}
+
+export async function purgeOlderThan(days) {
+  const n = Number(days)
+  if (!Number.isFinite(n) || n < 0) throw new Error('days must be a non-negative number')
+  const { rowCount } = await pool.query(
+    `DELETE FROM reports WHERE created_at < now() - ($1 || ' days')::interval`,
+    [String(n)],
+  )
+  return { removed: rowCount }
 }

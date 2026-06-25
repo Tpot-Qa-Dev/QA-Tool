@@ -31,6 +31,7 @@ export async function postAudit(req, res) {
     environmentHint,
     figmaProject,
     sections,
+    aiModelId,
   } = req.body
 
   const allowFile = environmentHint === 'local'
@@ -76,6 +77,8 @@ export async function postAudit(req, res) {
         environmentHint,
         figmaProject,
         sections,
+        aiModelId,
+        ownerId: req.user?.id ?? null,
       },
       emit,
     )

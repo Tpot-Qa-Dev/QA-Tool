@@ -3,6 +3,7 @@
 //  Route definitions for past-audit retrieval, management and maintenance.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Router } from 'express'
+import { requireAdmin } from '../middleware/auth.js'
 import {
   getHistoryList,
   getHistoryItem,
@@ -17,7 +18,8 @@ const router = Router()
 router.get('/history', getHistoryList)
 // Static sub-paths must precede the '/:id' param route so they aren't captured.
 router.get('/history/stats', getHistoryStats)
-router.post('/history/maintenance', postHistoryMaintenance)
+// Bulk maintenance (clear / purge everyone's history) is destructive → admin-only.
+router.post('/history/maintenance', requireAdmin, postHistoryMaintenance)
 router.get('/history/:id', getHistoryItem)
 router.put('/history/:id', putHistoryItem)
 router.delete('/history/:id', deleteHistoryItem)

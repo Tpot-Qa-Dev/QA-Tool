@@ -9,11 +9,12 @@ import HistoryIcon from '@mui/icons-material/History'
 import SettingsIcon from '@mui/icons-material/Settings'
 import InsightsIcon from '@mui/icons-material/Insights'
 
-export default function Sidebar({ active, onHome, onHistory, onSettings, onAdmin }) {
+export default function Sidebar({ active, onHome, onHistory, onSettings, onAdmin, isAdmin }) {
   const items = [
     { key: 'dashboard', label: 'Dashboard', icon: <HomeIcon />, onClick: onHome },
     { key: 'history', label: 'History', icon: <HistoryIcon />, onClick: onHistory },
-    { key: 'admin', label: 'Admin', icon: <InsightsIcon />, onClick: onAdmin },
+    // Admin dashboard is only offered to admins.
+    ...(isAdmin ? [{ key: 'admin', label: 'Admin', icon: <InsightsIcon />, onClick: onAdmin }] : []),
     { key: 'settings', label: 'Settings', icon: <SettingsIcon />, onClick: onSettings },
   ]
 

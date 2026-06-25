@@ -10,7 +10,13 @@ import { applyAppearance } from './lib/applyAppearance.js'
 import { revealAll, attachTilt } from './lib/motion.js'
 import './styles/app.css'
 import './styles/fx.css'
-import { checkHealth, getSettings, getCustomChecks, listFigmaProjects } from './api/client.js'
+import {
+  checkHealth,
+  getSettings,
+  getCustomChecks,
+  listFigmaProjects,
+  listUserAiModels,
+} from './api/client.js'
 import {
   MODULES,
   buildCheckState,
@@ -21,7 +27,9 @@ import {
 import { normalizeUrl, validateUrl, validateFigmaUrl } from './lib/validation.js'
 import { getRecentUrls, addRecentUrl } from './lib/recentUrls.js'
 import { useAudit } from './hooks/useAudit.js'
+import { useAuth } from './hooks/useAuth.js'
 import { useTheme } from './hooks/useTheme.js'
+import Login from './components/Login.jsx'
 import Header from './components/Header.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import StepIndicator from './components/StepIndicator.jsx'
@@ -63,6 +71,7 @@ const EMPTY_INPUTS = {
   environment: 'live',
   figmaProject: '',
   sections: [],
+  aiModelId: '',
 }
 
 // Per-environment URL memory: remembers a separate website URL for the Local,
@@ -102,8 +111,10 @@ export default function App() {
   const [uiCfg, setUiCfg] = useState(null) // admin appearance settings
   const [pastReport, setPastReport] = useState(null)
   const [figmaProjects, setFigmaProjects] = useState({ projects: [], activeId: '' })
+  const [aiModels, setAiModels] = useState({ profiles: [], activeId: '' })
 
   const audit = useAudit()
+  const auth = useAuth()
   const theme = useTheme()
   const muiTheme = useMemo(() => buildMuiTheme(theme.theme, uiCfg || {}), [theme.theme, uiCfg])
   const baseMod = MODULES.find((m) => m.id === selectedId) || null
@@ -125,29 +136,33 @@ export default function App() {
     checkHealth().then(setHealth)
   }, [])
 
-  // Load saved Figma project tokens (for the per-audit project picker).
+  // Load the AI models the admin permitted users to pick (for the audit picker).
+  // These all need a signed-in session, so they re-run once a user logs in.
   useEffect(() => {
-    listFigmaProjects()
-      .then(setFigmaProjects)
+    if (!auth.user) return
+    listUserAiModels()
+      .then(setAiModels)
       .catch(() => {})
-  }, [])
+  }, [auth.user])
 
-  // Load custom checks + disabled built-ins once (merged into modules in the wizard).
+  // Load custom checks + disabled built-ins (merged into modules in the wizard).
   useEffect(() => {
+    if (!auth.user) return
     getCustomChecks()
       .then((d) => {
         setCustomChecks(d.customChecks || {})
         setDisabledChecks(d.disabledChecks || {})
       })
       .catch(() => {})
-  }, [])
+  }, [auth.user])
 
   // Load the saved Figma project tokens (for the per-audit project picker).
   useEffect(() => {
+    if (!auth.user) return
     listFigmaProjects()
       .then(setFigmaProjects)
       .catch(() => {})
-  }, [])
+  }, [auth.user])
 
   // Entrance reveal + 3D hover tilt whenever the visible content changes.
   useEffect(() => {
@@ -158,9 +173,10 @@ export default function App() {
     return () => cancelAnimationFrame(raf)
   }, [step, selectedId, audit.report, pastReport])
 
-  // Load audit-default settings on mount: which module to pre-select and
+  // Load audit-default settings after sign-in: which module to pre-select and
   // whether checkboxes start all-on. Best-effort — failure leaves defaults.
   useEffect(() => {
+    if (!auth.user) return
     getSettings()
       .then((s) => {
         const a = s?.settings?.audit || {}
@@ -178,7 +194,7 @@ export default function App() {
         }
       })
       .catch(() => {})
-  }, [])
+  }, [auth.user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset checks + inputs whenever a different module is chosen (or once custom
   // checks finish loading, so they're included in the initial state).
@@ -290,6 +306,7 @@ export default function App() {
       environmentHint: inputs.environment,
       figmaProject: inputs.figmaProject || undefined,
       sections: inputs.sections?.length ? inputs.sections : undefined,
+      aiModelId: inputs.aiModelId || undefined,
     })
     setStep(4)
   }
@@ -322,11 +339,30 @@ export default function App() {
     ? 'Admin Dashboard'
     : ['Select Module', 'Configure Audit', 'Running Audit', 'Audit Report'][step - 1] || 'Dashboard'
 
+  // ── Auth gate ─────────────────────────────────────────────────────────────
+  // Until the stored token has been checked, render an empty shell to avoid a
+  // flash of the login screen for already-signed-in users.
+  if (!auth.ready) {
+    return (
+      <ThemeProvider theme={muiTheme}>
+        <div className="app-shell" />
+      </ThemeProvider>
+    )
+  }
+  if (!auth.user) {
+    return (
+      <ThemeProvider theme={muiTheme}>
+        <Login onLogin={auth.login} />
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ThemeProvider theme={muiTheme}>
       <div className="app-shell">
         <Sidebar
           active={activeNav}
+          isAdmin={auth.isAdmin}
           onHome={handleReset}
           onHistory={() => setHistoryOpen(true)}
           onSettings={() => setSettingsOpen(true)}
@@ -340,6 +376,8 @@ export default function App() {
             theme={theme.theme}
             onToggleTheme={theme.toggle}
             title={stepTitle}
+            user={auth.user}
+            onLogout={auth.logout}
           />
 
           <div className="app-content">
@@ -356,7 +394,11 @@ export default function App() {
               health={health}
             />
 
-            <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
+            <AdminPanel
+              open={adminOpen && auth.isAdmin}
+              onClose={() => setAdminOpen(false)}
+              currentUser={auth.user}
+            />
 
             <StepIndicator current={step} />
 
@@ -383,6 +425,7 @@ export default function App() {
                 recentUrls={recentUrls}
                 recentFigmaUrls={recentFigmaUrls}
                 figmaProjects={figmaProjects}
+                aiModels={aiModels}
                 health={health}
                 canRun={canRun}
                 onBack={() => setStep(1)}
@@ -399,6 +442,7 @@ export default function App() {
                 progressLabel={progressLabel}
                 toolCalls={audit.toolCalls}
                 logs={audit.logs}
+                usage={audit.usage}
                 logRef={audit.logRef}
               />
             )}

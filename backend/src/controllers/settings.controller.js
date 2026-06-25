@@ -9,6 +9,7 @@ import {
   MODEL_PRESETS,
 } from '../services/settings.service.js'
 import { getUsage, resetUsage } from '../services/usage.service.js'
+import { listAllowedProfiles } from '../services/aiModels.service.js'
 
 export async function getSettingsHandler(_req, res) {
   try {
@@ -45,6 +46,17 @@ export async function resetUsageHandler(_req, res) {
     res.json(await resetUsage())
   } catch (err) {
     console.error('[usage] reset error:', err)
+    res.status(500).json({ error: err.message })
+  }
+}
+
+// User-facing AI model list — only the models the admin permitted for users,
+// with API keys masked. Used by the audit screen's model picker.
+export async function getUserAiModelsHandler(_req, res) {
+  try {
+    res.json(await listAllowedProfiles())
+  } catch (err) {
+    console.error('[ai-models] user list error:', err)
     res.status(500).json({ error: err.message })
   }
 }
