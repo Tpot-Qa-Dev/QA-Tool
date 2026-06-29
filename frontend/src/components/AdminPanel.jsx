@@ -4,7 +4,7 @@
 //  split, recent audits, cumulative token spend, prompt inspection, and the test
 //  catalogue. Read-only insight; management actions live in Settings.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getAdminOverview,
   getAdminPrompts,
@@ -25,6 +25,7 @@ import {
   setActivePromptVersion,
   deletePromptVersion,
   listAiModels,
+  listOpenRouterModels,
   addAiModel,
   updateAiModel,
   setActiveAiModel,
@@ -136,6 +137,22 @@ export default function AdminPanel({ open, onClose, currentUser }) {
   const [aiNotice, setAiNotice] = useState(null)
   const [aiEditId, setAiEditId] = useState(null) // null = add mode; id = editing that profile
   const setAiField = (k, v) => setAiForm((f) => ({ ...f, [k]: v }))
+  // Live OpenRouter catalog (tool-capable models), lazy-loaded the first time
+  // the admin selects the OpenRouter provider. Empty until loaded; stays empty
+  // (so the form falls back to MODEL_PRESETS) if the upstream catalog fails.
+  const [orModels, setOrModels] = useState([])
+  const orLoaded = useRef(false)
+
+  // Fetch the OpenRouter catalog once, on demand.
+  const loadOrModels = useCallback(() => {
+    if (orLoaded.current) return
+    orLoaded.current = true
+    listOpenRouterModels()
+      .then((models) => setOrModels(models || []))
+      .catch(() => {
+        orLoaded.current = false // allow a retry on next provider switch
+      })
+  }, [])
 
   // Appearance (admin-managed UI).
   const [uiForm, setUiForm] = useState(null)
@@ -276,6 +293,7 @@ export default function AdminPanel({ open, onClose, currentUser }) {
   // Load a profile into the form for editing (key left blank = keep current).
   const aiStartEdit = (p) => {
     setAiEditId(p.id)
+    if (p.provider === 'openrouter') loadOrModels()
     setAiForm({
       label: p.label,
       provider: p.provider,
@@ -1453,6 +1471,7 @@ export default function AdminPanel({ open, onClose, currentUser }) {
                     value={aiForm.provider}
                     onChange={(e) => {
                       const prov = e.target.value
+                      if (prov === 'openrouter') loadOrModels()
                       setAiForm((f) => ({
                         ...f,
                         provider: prov,
@@ -1481,9 +1500,13 @@ export default function AdminPanel({ open, onClose, currentUser }) {
                     onChange={(e) => setAiField('model', e.target.value)}
                   />
                   <datalist id="ai-model-presets">
-                    {(MODEL_PRESETS[aiForm.provider] || []).map((m) => (
-                      <option key={m} value={m} />
-                    ))}
+                    {aiForm.provider === 'openrouter' && orModels.length
+                      ? orModels.map((m) => (
+                          <option key={m.id} value={m.id} label={m.name} />
+                        ))
+                      : (MODEL_PRESETS[aiForm.provider] || []).map((m) => (
+                          <option key={m} value={m} />
+                        ))}
                   </datalist>
                 </label>
                 <label className="settings-field">

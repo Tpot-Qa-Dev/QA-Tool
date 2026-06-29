@@ -20,6 +20,7 @@ import {
   putAdminAiModel,
   deleteAdminAiModel,
 } from '../controllers/admin.controller.js'
+import { getOpenRouterModels } from '../controllers/audit.controller.js'
 
 const router = Router()
 
@@ -37,6 +38,9 @@ router.post('/admin/prompt-config', postAdminPromptVersion)
 router.put('/admin/prompt-config/active', putAdminPromptActive)
 router.get('/admin/prompt-config/:id', getAdminPromptVersion)
 router.delete('/admin/prompt-config/:id', deleteAdminPromptVersion)
+
+// Live OpenRouter catalog (tool-capable models) for the model picker.
+router.get('/admin/openrouter/models', getOpenRouterModels)
 
 // AI model profiles (multiple models, each with its own API key).
 router.get('/admin/ai-models', getAdminAiModels)

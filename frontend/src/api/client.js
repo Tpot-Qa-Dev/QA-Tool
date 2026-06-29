@@ -43,7 +43,9 @@ export function installAuthInterceptor() {
     if (isApi && !isLogin) {
       const token = getToken()
       if (token) {
-        const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined))
+        const headers = new Headers(
+          init.headers || (typeof input !== 'string' ? input.headers : undefined),
+        )
         headers.set('Authorization', `Bearer ${token}`)
         init = { ...init, headers }
       }
@@ -298,6 +300,11 @@ export async function listUserAiModels() {
   const r = await fetch(`${API_BASE}/ai-models`)
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json() // { profiles, activeId }
+}
+export async function listOpenRouterModels() {
+  const r = await fetch(`${API_BASE}/admin/openrouter/models`)
+  if (!r.ok) throw new Error('Failed to load OpenRouter models')
+  return (await r.json()).models // [{id,name,contextLength,promptPrice}]
 }
 
 export async function listAiModels() {

@@ -19,15 +19,6 @@ import {
   setActiveProfile,
 } from '../services/aiModels.service.js'
 
-export async function getAdminOverview(req, res) {
-  try {
-    res.json(await getOverview({ days: req.query.days, module: req.query.module }))
-  } catch (err) {
-    console.error('[admin] overview error:', err)
-    res.status(500).json({ error: err.message })
-  }
-}
-
 export async function getAdminPrompts(_req, res) {
   try {
     res.json(await getPrompts())
@@ -87,7 +78,14 @@ export async function getAdminAiModels(_req, res) {
     res.status(500).json({ error: err.message })
   }
 }
-
+export async function getAdminOverview(req, res) {
+  try {
+    res.json(await getOverview({ days: req.query.days, module: req.query.module }))
+  } catch (err) {
+    console.error('[admin] overview error:', err)
+    res.status(500).json({ error: err.message })
+  }
+}
 export async function postAdminAiModel(req, res) {
   try {
     const { label, provider, model, apiKey, allowedForUsers } = req.body || {}
@@ -108,7 +106,9 @@ export async function putAdminAiModelActive(req, res) {
 export async function putAdminAiModel(req, res) {
   try {
     const { label, model, provider, apiKey, allowedForUsers } = req.body || {}
-    res.json(await updateProfile(req.params.id, { label, model, provider, apiKey, allowedForUsers }))
+    res.json(
+      await updateProfile(req.params.id, { label, model, provider, apiKey, allowedForUsers }),
+    )
   } catch (err) {
     res.status(400).json({ error: err.message })
   }

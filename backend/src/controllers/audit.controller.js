@@ -6,6 +6,7 @@
 import { config } from '../config/index.js'
 import { initSSE, sendSSE } from '../utils/sse.js'
 import { runAudit } from '../services/audit.service.js'
+import { listOpenRouterModels } from '../services/openrouterCatalog.service.js'
 
 // True when value is a well-formed http/https link. When `allowFile` is set
 // (a declared Local link), a file:// path to a local HTML file is also valid.
@@ -19,7 +20,13 @@ function isHttpUrl(value, { allowFile = false } = {}) {
     return false
   }
 }
-
+export async function getOpenRouterModels(_req, res) {
+  try {
+    res.json({ models: await listOpenRouterModels() })
+  } catch (err) {
+    res.status(502).json({ error: err.message })
+  }
+}
 export async function postAudit(req, res) {
   const {
     url,
@@ -37,13 +44,11 @@ export async function postAudit(req, res) {
   const allowFile = environmentHint === 'local'
   if (!url) return res.status(400).json({ error: 'url is required' })
   if (!isHttpUrl(url, { allowFile })) {
-    return res
-      .status(400)
-      .json({
-        error: allowFile
-          ? 'url must be a valid http(s) or file:// link'
-          : 'url must be a valid http(s) link',
-      })
+    return res.status(400).json({
+      error: allowFile
+        ? 'url must be a valid http(s) or file:// link'
+        : 'url must be a valid http(s) link',
+    })
   }
   if (figmaUrl && !isHttpUrl(figmaUrl)) {
     return res.status(400).json({ error: 'figmaUrl must be a valid http(s) link' })
